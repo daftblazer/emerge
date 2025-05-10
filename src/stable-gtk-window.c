@@ -31,7 +31,6 @@ struct _StableGtkWindow
   GtkButton           *initial_image_chooser;
   GtkToggleButton     *img2img_toggle;
   GtkSpinButton       *strength_spin;
-  GtkProgressBar      *progress_bar;
   GtkLabel            *status_label;
 
   /* Generation state */
@@ -417,6 +416,18 @@ on_generate_clicked (GtkButton *button,
                                adw_toast_new (error->message));
     g_error_free (error);
     g_free (command_line);
+    g_strfreev (argv);
+    
+    /* Re-enable UI */
+    self->is_generating = FALSE;
+    gtk_widget_set_sensitive (GTK_WIDGET (self->generate_button), TRUE);
+    gtk_widget_set_sensitive (GTK_WIDGET (self->model_chooser), TRUE);
+    gtk_widget_set_sensitive (GTK_WIDGET (self->initial_image_chooser), TRUE);
+    gtk_widget_set_visible (GTK_WIDGET (self->stop_button), FALSE);
+    gtk_spinner_stop (self->spinner);
+    gtk_widget_set_visible (GTK_WIDGET (self->spinner), FALSE);
+    gtk_label_set_text (self->status_label, "Ready");
+    
     return;
   }
   
@@ -551,7 +562,6 @@ stable_gtk_window_class_init (StableGtkWindowClass *klass)
   gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, initial_image_chooser);
   gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, img2img_toggle);
   gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, strength_spin);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, progress_bar);
   gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, status_label);
   
   gtk_widget_class_bind_template_callback (widget_class, on_generate_clicked);
