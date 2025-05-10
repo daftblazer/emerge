@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Stable GTK
+Comment=GTK4 Frontend for Stable-Diffusion.cpp
+Exec=stable-gtk
+Icon=com.github.stable-gtk
+Terminal=false
+Type=Application
+Categories=Graphics;GTK;
+StartupNotify=true
+Keywords=ai;stable-diffusion;image-generation; 

@@ -1,0 +1,13 @@
+build/
+.vscode/
+*~
+.DS_Store
+.directory
+_build/
+__pycache__/
+*.py[cod]
+*.so
+*.o
+*.la
+*.lo
+*.swp 

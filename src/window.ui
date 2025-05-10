@@ -1,0 +1,473 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <requires lib="gtk" version="4.0"/>
+  <requires lib="libadwaita" version="1.0"/>
+  <template class="StableGtkWindow" parent="AdwApplicationWindow">
+    <property name="title" translatable="yes">Stable GTK</property>
+    <property name="default-width">1000</property>
+    <property name="default-height">800</property>
+    <child>
+      <object class="AdwToastOverlay" id="toast_overlay">
+        <child>
+          <object class="GtkBox">
+            <property name="orientation">vertical</property>
+            <child>
+              <object class="GtkHeaderBar" id="header_bar">
+                <child type="title">
+                  <object class="AdwWindowTitle">
+                    <property name="title" translatable="yes">Stable GTK</property>
+                    <property name="subtitle" translatable="yes">GTK Frontend for Stable-Diffusion.cpp</property>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkPaned">
+                <property name="position">500</property>
+                <property name="vexpand">true</property>
+                <property name="hexpand">true</property>
+                <property name="wide-handle">true</property>
+                <child>
+                  <object class="GtkScrolledWindow">
+                    <property name="hscrollbar-policy">never</property>
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">vertical</property>
+                        <property name="margin-start">12</property>
+                        <property name="margin-end">12</property>
+                        <property name="margin-top">12</property>
+                        <property name="margin-bottom">12</property>
+                        <property name="spacing">12</property>
+                        
+                        <!-- Model Selection -->
+                        <child>
+                          <object class="GtkBox">
+                            <property name="orientation">horizontal</property>
+                            <property name="spacing">6</property>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label" translatable="yes">Model:</property>
+                                <property name="xalign">0</property>
+                                <property name="width-request">80</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="model_chooser">
+                                <property name="hexpand">true</property>
+                                <property name="label" translatable="yes">Select Model File</property>
+                                <signal name="clicked" handler="on_model_file_select" swapped="no"/>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        
+                        <!-- Prompt Entry -->
+                        <child>
+                          <object class="GtkBox">
+                            <property name="orientation">vertical</property>
+                            <property name="spacing">6</property>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label" translatable="yes">Prompt:</property>
+                                <property name="xalign">0</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkEntry" id="prompt_entry">
+                                <property name="hexpand">true</property>
+                                <property name="placeholder-text" translatable="yes">Enter your prompt here...</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        
+                        <!-- Negative Prompt Entry -->
+                        <child>
+                          <object class="GtkBox">
+                            <property name="orientation">vertical</property>
+                            <property name="spacing">6</property>
+                            <child>
+                              <object class="GtkLabel">
+                                <property name="label" translatable="yes">Negative Prompt:</property>
+                                <property name="xalign">0</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkEntry" id="negative_prompt_entry">
+                                <property name="hexpand">true</property>
+                                <property name="placeholder-text" translatable="yes">Enter your negative prompt here...</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        
+                        <!-- Image Size Settings -->
+                        <child>
+                          <object class="AdwPreferencesGroup">
+                            <property name="title" translatable="yes">Image Settings</property>
+                            <child>
+                              <object class="GtkGrid">
+                                <property name="row-spacing">6</property>
+                                <property name="column-spacing">12</property>
+                                <child>
+                                  <object class="GtkLabel">
+                                    <property name="label" translatable="yes">Width:</property>
+                                    <property name="xalign">0</property>
+                                    <layout>
+                                      <property name="column">0</property>
+                                      <property name="row">0</property>
+                                    </layout>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkSpinButton" id="width_spin">
+                                    <property name="adjustment">
+                                      <object class="GtkAdjustment">
+                                        <property name="lower">64</property>
+                                        <property name="upper">2048</property>
+                                        <property name="step-increment">8</property>
+                                        <property name="page-increment">64</property>
+                                      </object>
+                                    </property>
+                                    <layout>
+                                      <property name="column">1</property>
+                                      <property name="row">0</property>
+                                    </layout>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkLabel">
+                                    <property name="label" translatable="yes">Height:</property>
+                                    <property name="xalign">0</property>
+                                    <layout>
+                                      <property name="column">2</property>
+                                      <property name="row">0</property>
+                                    </layout>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkSpinButton" id="height_spin">
+                                    <property name="adjustment">
+                                      <object class="GtkAdjustment">
+                                        <property name="lower">64</property>
+                                        <property name="upper">2048</property>
+                                        <property name="step-increment">8</property>
+                                        <property name="page-increment">64</property>
+                                      </object>
+                                    </property>
+                                    <layout>
+                                      <property name="column">3</property>
+                                      <property name="row">0</property>
+                                    </layout>
+                                  </object>
+                                </child>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        
+                        <!-- Generation Settings -->
+                        <child>
+                          <object class="AdwPreferencesGroup">
+                            <property name="title" translatable="yes">Generation Settings</property>
+                            <child>
+                              <object class="GtkGrid">
+                                <property name="row-spacing">6</property>
+                                <property name="column-spacing">12</property>
+                                <child>
+                                  <object class="GtkLabel">
+                                    <property name="label" translatable="yes">Steps:</property>
+                                    <property name="xalign">0</property>
+                                    <layout>
+                                      <property name="column">0</property>
+                                      <property name="row">0</property>
+                                    </layout>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkSpinButton" id="steps_spin">
+                                    <property name="adjustment">
+                                      <object class="GtkAdjustment">
+                                        <property name="lower">1</property>
+                                        <property name="upper">150</property>
+                                        <property name="step-increment">1</property>
+                                        <property name="page-increment">5</property>
+                                      </object>
+                                    </property>
+                                    <layout>
+                                      <property name="column">1</property>
+                                      <property name="row">0</property>
+                                    </layout>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkLabel">
+                                    <property name="label" translatable="yes">CFG Scale:</property>
+                                    <property name="xalign">0</property>
+                                    <layout>
+                                      <property name="column">0</property>
+                                      <property name="row">1</property>
+                                    </layout>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkSpinButton" id="cfg_scale_spin">
+                                    <property name="adjustment">
+                                      <object class="GtkAdjustment">
+                                        <property name="lower">1.0</property>
+                                        <property name="upper">30.0</property>
+                                        <property name="value">7.0</property>
+                                        <property name="step-increment">0.1</property>
+                                        <property name="page-increment">1.0</property>
+                                      </object>
+                                    </property>
+                                    <property name="digits">1</property>
+                                    <layout>
+                                      <property name="column">1</property>
+                                      <property name="row">1</property>
+                                    </layout>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkLabel">
+                                    <property name="label" translatable="yes">Seed:</property>
+                                    <property name="xalign">0</property>
+                                    <layout>
+                                      <property name="column">2</property>
+                                      <property name="row">0</property>
+                                    </layout>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkSpinButton" id="seed_spin">
+                                    <property name="adjustment">
+                                      <object class="GtkAdjustment">
+                                        <property name="lower">-1</property>
+                                        <property name="upper">2147483647</property>
+                                        <property name="step-increment">1</property>
+                                        <property name="page-increment">1000</property>
+                                      </object>
+                                    </property>
+                                    <layout>
+                                      <property name="column">3</property>
+                                      <property name="row">0</property>
+                                    </layout>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkLabel">
+                                    <property name="label" translatable="yes">Sampler:</property>
+                                    <property name="xalign">0</property>
+                                    <layout>
+                                      <property name="column">2</property>
+                                      <property name="row">1</property>
+                                    </layout>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkDropDown" id="sampling_method_dropdown">
+                                    <layout>
+                                      <property name="column">3</property>
+                                      <property name="row">1</property>
+                                    </layout>
+                                  </object>
+                                </child>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        
+                        <!-- Img2Img Toggle -->
+                        <child>
+                          <object class="GtkBox">
+                            <property name="orientation">vertical</property>
+                            <property name="spacing">6</property>
+                            <child>
+                              <object class="GtkBox">
+                                <property name="orientation">horizontal</property>
+                                <property name="spacing">12</property>
+                                <child>
+                                  <object class="GtkToggleButton" id="img2img_toggle">
+                                    <property name="label" translatable="yes">Image to Image Mode</property>
+                                    <property name="halign">start</property>
+                                    <signal name="toggled" handler="on_img2img_toggled" swapped="no"/>
+                                  </object>
+                                </child>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkBox">
+                                <property name="orientation">horizontal</property>
+                                <property name="spacing">6</property>
+                                <child>
+                                  <object class="GtkLabel">
+                                    <property name="label" translatable="yes">Input image:</property>
+                                    <property name="xalign">0</property>
+                                    <property name="width-request">80</property>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkButton" id="initial_image_chooser">
+                                    <property name="hexpand">true</property>
+                                    <property name="label" translatable="yes">Select Input Image</property>
+                                    <signal name="clicked" handler="on_initial_image_file_select" swapped="no"/>
+                                  </object>
+                                </child>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkBox">
+                                <property name="orientation">horizontal</property>
+                                <property name="spacing">6</property>
+                                <child>
+                                  <object class="GtkLabel">
+                                    <property name="label" translatable="yes">Strength:</property>
+                                    <property name="xalign">0</property>
+                                    <property name="width-request">80</property>
+                                  </object>
+                                </child>
+                                <child>
+                                  <object class="GtkSpinButton" id="strength_spin">
+                                    <property name="adjustment">
+                                      <object class="GtkAdjustment">
+                                        <property name="lower">0.0</property>
+                                        <property name="upper">1.0</property>
+                                        <property name="value">0.75</property>
+                                        <property name="step-increment">0.01</property>
+                                        <property name="page-increment">0.1</property>
+                                      </object>
+                                    </property>
+                                    <property name="digits">2</property>
+                                    <property name="hexpand">false</property>
+                                  </object>
+                                </child>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        
+                        <!-- Advanced Settings Toggle -->
+                        <child>
+                          <object class="GtkToggleButton" id="advanced_settings_toggle">
+                            <property name="label" translatable="yes">Advanced Settings</property>
+                            <property name="halign">start</property>
+                            <signal name="toggled" handler="on_advanced_settings_toggled" swapped="no"/>
+                          </object>
+                        </child>
+                        
+                        <!-- Advanced Settings Box -->
+                        <child>
+                          <object class="GtkBox" id="advanced_settings_box">
+                            <property name="orientation">vertical</property>
+                            <property name="spacing">12</property>
+                            <property name="margin-top">12</property>
+                            <child>
+                              <object class="AdwPreferencesGroup">
+                                <property name="title" translatable="yes">Advanced Options</property>
+                                <child>
+                                  <object class="GtkLabel">
+                                    <property name="label" translatable="yes">This section will be expanded with more options in future versions.</property>
+                                    <property name="xalign">0</property>
+                                    <style>
+                                      <class name="dim-label"/>
+                                    </style>
+                                  </object>
+                                </child>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        
+                        <!-- Generate Button -->
+                        <child>
+                          <object class="GtkBox">
+                            <property name="orientation">horizontal</property>
+                            <property name="spacing">12</property>
+                            <property name="margin-top">12</property>
+                            <child>
+                              <object class="GtkButton" id="generate_button">
+                                <property name="label" translatable="yes">Generate</property>
+                                <property name="halign">start</property>
+                                <style>
+                                  <class name="suggested-action"/>
+                                </style>
+                                <signal name="clicked" handler="on_generate_clicked" swapped="no"/>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="stop_button">
+                                <property name="label" translatable="yes">Stop</property>
+                                <property name="halign">start</property>
+                                <style>
+                                  <class name="destructive-action"/>
+                                </style>
+                                <signal name="clicked" handler="on_stop_clicked" swapped="no"/>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkSpinner" id="spinner">
+                                <property name="spinning">false</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkLabel" id="status_label">
+                                <property name="hexpand">true</property>
+                                <property name="xalign">0</property>
+                                <property name="label">Ready</property>
+                                <property name="margin-start">12</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        
+                        <!-- Progress Bar -->
+                        <child>
+                          <object class="GtkProgressBar" id="progress_bar">
+                            <property name="hexpand">true</property>
+                          </object>
+                        </child>
+                        
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                
+                <!-- Output View -->
+                <child>
+                  <object class="GtkScrolledWindow">
+                    <property name="hexpand">true</property>
+                    <property name="vexpand">true</property>
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">vertical</property>
+                        <property name="valign">center</property>
+                        <property name="halign">center</property>
+                        <property name="margin-top">12</property>
+                        <property name="margin-bottom">12</property>
+                        <property name="margin-start">12</property>
+                        <property name="margin-end">12</property>
+                        <property name="spacing">12</property>
+                        <child>
+                          <object class="GtkPicture" id="output_image">
+                            <property name="can-shrink">true</property>
+                            <property name="keep-aspect-ratio">true</property>
+                            <property name="hexpand">true</property>
+                            <property name="vexpand">true</property>
+                            <style>
+                              <class name="card"/>
+                            </style>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </template>
+</interface> 
