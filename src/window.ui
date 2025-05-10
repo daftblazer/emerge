@@ -64,6 +64,7 @@
                       <object class="GtkBox">
                         <property name="orientation">vertical</property>
                         <property name="hexpand">true</property>
+                        <property name="width-request">700</property>
                         <property name="vexpand">true</property>
                         <property name="halign">fill</property>
                         <property name="valign">fill</property>
@@ -99,10 +100,12 @@
                     
                     <!-- Settings - Right Side -->
                     <child>
-                      <object class="GtkBox">
+                      <object class="GtkBox" id="settings_panel">
                         <property name="orientation">vertical</property>
                         <property name="spacing">12</property>
-                        <property name="width-request">300</property>
+                        <property name="width-request">200</property>
+                        <property name="hexpand">false</property>
+                        <property name="vexpand">true</property>
                         
                         <!-- Model Selection -->
                         <child>
@@ -131,9 +134,11 @@
                             <child>
                               <object class="AdwActionRow">
                                 <property name="title" translatable="yes">Width</property>
+                                <property name="hexpand">true</property>
                                 <child>
                                   <object class="GtkSpinButton" id="width_spin">
                                     <property name="valign">center</property>
+                                    <property name="width-request">75</property>
                                     <property name="adjustment">
                                       <object class="GtkAdjustment">
                                         <property name="lower">64</property>
@@ -150,9 +155,11 @@
                             <child>
                               <object class="AdwActionRow">
                                 <property name="title" translatable="yes">Height</property>
+                                <property name="hexpand">true</property>
                                 <child>
                                   <object class="GtkSpinButton" id="height_spin">
                                     <property name="valign">center</property>
+                                    <property name="width-request">75</property>
                                     <property name="adjustment">
                                       <object class="GtkAdjustment">
                                         <property name="lower">64</property>
@@ -176,9 +183,11 @@
                             <child>
                               <object class="AdwActionRow">
                                 <property name="title" translatable="yes">Steps</property>
+                                <property name="hexpand">true</property>
                                 <child>
                                   <object class="GtkSpinButton" id="steps_spin">
                                     <property name="valign">center</property>
+                                    <property name="width-request">75</property>
                                     <property name="adjustment">
                                       <object class="GtkAdjustment">
                                         <property name="lower">1</property>
@@ -195,9 +204,11 @@
                             <child>
                               <object class="AdwActionRow">
                                 <property name="title" translatable="yes">CFG Scale</property>
+                                <property name="hexpand">true</property>
                                 <child>
                                   <object class="GtkSpinButton" id="cfg_scale_spin">
                                     <property name="valign">center</property>
+                                    <property name="width-request">75</property>
                                     <property name="adjustment">
                                       <object class="GtkAdjustment">
                                         <property name="lower">1.0</property>
@@ -215,9 +226,11 @@
                             <child>
                               <object class="AdwActionRow">
                                 <property name="title" translatable="yes">Seed</property>
+                                <property name="hexpand">true</property>
                                 <child>
                                   <object class="GtkSpinButton" id="seed_spin">
                                     <property name="valign">center</property>
+                                    <property name="width-request">75</property>
                                     <property name="adjustment">
                                       <object class="GtkAdjustment">
                                         <property name="lower">-1</property>
@@ -234,9 +247,11 @@
                             <child>
                               <object class="AdwActionRow">
                                 <property name="title" translatable="yes">Sampler</property>
+                                <property name="hexpand">true</property>
                                 <child>
                                   <object class="GtkDropDown" id="sampling_method_dropdown">
                                     <property name="valign">center</property>
+                                    <property name="width-request">85</property>
                                   </object>
                                 </child>
                               </object>
@@ -270,9 +285,11 @@
                             <child>
                               <object class="AdwActionRow">
                                 <property name="title" translatable="yes">Strength</property>
+                                <property name="hexpand">true</property>
                                 <child>
                                   <object class="GtkSpinButton" id="strength_spin">
                                     <property name="valign">center</property>
+                                    <property name="width-request">75</property>
                                     <property name="adjustment">
                                       <object class="GtkAdjustment">
                                         <property name="lower">0.0</property>
