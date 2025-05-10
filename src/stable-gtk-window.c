@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
+#include <time.h>
 #include <glib/gspawn.h>
 
 struct _StableGtkWindow
@@ -583,7 +584,7 @@ stable_gtk_window_init (StableGtkWindow *self)
   gtk_spin_button_set_value (self->width_spin, 512);
   gtk_spin_button_set_value (self->height_spin, 512);
   gtk_spin_button_set_value (self->steps_spin, 20);
-  gtk_spin_button_set_value (self->seed_spin, 42);
+  gtk_spin_button_set_value (self->seed_spin, -1);  /* -1 means random seed */
   gtk_spin_button_set_value (self->cfg_scale_spin, 7.0);
   gtk_spin_button_set_value (self->strength_spin, 0.75);
   
