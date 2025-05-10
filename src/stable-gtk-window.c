@@ -21,6 +21,7 @@ struct _StableGtkWindow
   GtkDropDown         *sampling_method_dropdown;
   GtkButton           *generate_button;
   GtkButton           *stop_button;
+  GtkButton           *save_button;
   GtkSpinner          *spinner;
   AdwToastOverlay     *toast_overlay;
   GtkButton           *model_chooser;
@@ -40,6 +41,8 @@ struct _StableGtkWindow
   gchar              *model_path;
   gchar              *initial_image_path;
   gboolean            is_generating;
+  guint               image_counter;
+  gchar              *last_saved_dir;
 };
 
 G_DEFINE_TYPE (StableGtkWindow, stable_gtk_window, ADW_TYPE_APPLICATION_WINDOW)
@@ -63,10 +66,25 @@ process_finished_cb (GPid pid, gint status, gpointer user_data)
     adw_toast_overlay_add_toast (self->toast_overlay,
                                adw_toast_new ("Generation cancelled"));
   } else if (status == 0) {
-    /* Load the generated image */
+    /* Load the generated image - with refresh to prevent caching issues */
     GFile *file = g_file_new_for_path (self->output_path);
-    gtk_picture_set_file (self->output_image, file);
+    
+    /* Clear the current picture first */
+    gtk_picture_set_file (self->output_image, NULL);
+    
+    /* Load the new image */
+    GdkTexture *texture = gdk_texture_new_from_file(file, NULL);
+    if (texture) {
+      gtk_picture_set_paintable(self->output_image, GDK_PAINTABLE(texture));
+      g_object_unref(texture);
+    } else {
+      gtk_picture_set_file(self->output_image, file);
+    }
+    
     g_object_unref (file);
+    
+    /* Show the save button since we have an image now */
+    gtk_widget_set_visible (GTK_WIDGET (self->save_button), TRUE);
     
     gtk_label_set_text (self->status_label, "Done");
     adw_toast_overlay_add_toast (self->toast_overlay,
@@ -176,8 +194,16 @@ image_open_response (GObject *source_object,
   g_free (button_text);
   g_free (basename);
   
-  /* Show the initial image */
-  gtk_picture_set_file (self->output_image, file);
+  /* Show the initial image with improved loading method */
+  gtk_picture_set_file (self->output_image, NULL);
+  
+  GdkTexture *texture = gdk_texture_new_from_file(file, NULL);
+  if (texture) {
+    gtk_picture_set_paintable(self->output_image, GDK_PAINTABLE(texture));
+    g_object_unref(texture);
+  } else {
+    gtk_picture_set_file(self->output_image, file);
+  }
   
   g_object_unref (file);
 }
@@ -215,6 +241,103 @@ on_initial_image_file_select (GtkButton *button,
 }
 
 static void
+save_image_response (GObject *source_object,
+                    GAsyncResult *result,
+                    gpointer user_data)
+{
+  StableGtkWindow *self = STABLE_GTK_WINDOW (user_data);
+  GtkFileDialog *dialog = GTK_FILE_DIALOG (source_object);
+  GFile *file;
+  GError *error = NULL;
+  
+  file = gtk_file_dialog_save_finish (dialog, result, &error);
+  if (file == NULL) {
+    if (!g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
+      g_warning ("Failed to save file: %s", error->message);
+    g_error_free (error);
+    return;
+  }
+  
+  // Get the directory for future saves
+  GFile *parent = g_file_get_parent(file);
+  if (parent) {
+    g_free(self->last_saved_dir);
+    self->last_saved_dir = g_file_get_path(parent);
+    g_object_unref(parent);
+  }
+  
+  // Save current image to the selected location
+  GFile *src_file = g_file_new_for_path(self->output_path);
+  if (src_file) {
+    g_file_copy(src_file, file, G_FILE_COPY_OVERWRITE, NULL, NULL, NULL, &error);
+    g_object_unref(src_file);
+    
+    if (error) {
+      adw_toast_overlay_add_toast(self->toast_overlay,
+                                adw_toast_new ("Failed to save image"));
+      g_error_free(error);
+    } else {
+      adw_toast_overlay_add_toast(self->toast_overlay,
+                                adw_toast_new ("Image saved successfully"));
+    }
+  }
+  
+  g_object_unref(file);
+}
+
+static void
+on_save_clicked (GtkButton *button,
+                gpointer   user_data)
+{
+  StableGtkWindow *self = STABLE_GTK_WINDOW (user_data);
+  GtkFileDialog *dialog;
+  GtkFileFilter *filter;
+  GListStore *filters;
+  GFile *current_folder = NULL;
+  
+  // If there's no image to save, don't open dialog
+  if (self->output_path == NULL) {
+    adw_toast_overlay_add_toast(self->toast_overlay,
+                              adw_toast_new ("No image to save"));
+    return;
+  }
+  
+  dialog = gtk_file_dialog_new();
+  gtk_file_dialog_set_title(dialog, "Save Image");
+  
+  // Set default name
+  gchar *filename = g_strdup_printf("stable-diffusion-%04d.png", self->image_counter - 1);
+  gtk_file_dialog_set_initial_name(dialog, filename);
+  g_free(filename);
+  
+  // Set initial folder if we have saved before
+  if (self->last_saved_dir) {
+    current_folder = g_file_new_for_path(self->last_saved_dir);
+    gtk_file_dialog_set_initial_folder(dialog, current_folder);
+  }
+  
+  filter = gtk_file_filter_new();
+  gtk_file_filter_set_name(filter, "PNG Images");
+  gtk_file_filter_add_mime_type(filter, "image/png");
+  
+  filters = g_list_store_new(GTK_TYPE_FILE_FILTER);
+  g_list_store_append(filters, filter);
+  gtk_file_dialog_set_filters(dialog, G_LIST_MODEL(filters));
+  
+  gtk_file_dialog_save(dialog,
+                      GTK_WINDOW(self),
+                      NULL,  /* cancellable */
+                      save_image_response,
+                      self);
+  
+  if (current_folder)
+    g_object_unref(current_folder);
+  g_object_unref(dialog);
+  g_object_unref(filter);
+  g_object_unref(filters);
+}
+
+static void
 on_generate_clicked (GtkButton *button,
                      gpointer   user_data)
 {
@@ -234,7 +357,13 @@ on_generate_clicked (GtkButton *button,
     return;
   }
   
-  self->output_path = g_build_filename (g_get_tmp_dir (), "stable-gtk-output.png", NULL);
+  // Free previous output path if it exists
+  g_free(self->output_path);
+  
+  // Create sequentially numbered output path
+  self->output_path = g_build_filename (g_get_tmp_dir (), 
+                                      g_strdup_printf("stable-gtk-output-%04d.png", self->image_counter++), 
+                                      NULL);
   
   /* Get the absolute path to the sd binary */
   sd_path = g_build_filename ("/run/media/system/Projects/Coding/Stable-GTK", "bin", "sd", NULL);
@@ -382,6 +511,7 @@ stable_gtk_window_finalize (GObject *object)
   g_free (self->output_path);
   g_free (self->model_path);
   g_free (self->initial_image_path);
+  g_free (self->last_saved_dir);
   
   if (self->cancellable != NULL)
     g_object_unref (self->cancellable);
@@ -411,6 +541,7 @@ stable_gtk_window_class_init (StableGtkWindowClass *klass)
   gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, sampling_method_dropdown);
   gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, generate_button);
   gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, stop_button);
+  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, save_button);
   gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, spinner);
   gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, toast_overlay);
   gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, model_chooser);
@@ -424,6 +555,7 @@ stable_gtk_window_class_init (StableGtkWindowClass *klass)
   
   gtk_widget_class_bind_template_callback (widget_class, on_generate_clicked);
   gtk_widget_class_bind_template_callback (widget_class, on_stop_clicked);
+  gtk_widget_class_bind_template_callback (widget_class, on_save_clicked);
   gtk_widget_class_bind_template_callback (widget_class, on_model_file_select);
   gtk_widget_class_bind_template_callback (widget_class, on_initial_image_file_select);
   gtk_widget_class_bind_template_callback (widget_class, on_img2img_toggled);
@@ -444,6 +576,8 @@ stable_gtk_window_init (StableGtkWindow *self)
   self->output_path = NULL;
   self->model_path = NULL;
   self->initial_image_path = NULL;
+  self->image_counter = 1;
+  self->last_saved_dir = NULL;
   
   /* Initialize UI values */
   gtk_spin_button_set_value (self->width_spin, 512);
@@ -478,6 +612,9 @@ stable_gtk_window_init (StableGtkWindow *self)
   /* Hide stop button and spinner by default */
   gtk_widget_set_visible (GTK_WIDGET (self->stop_button), FALSE);
   gtk_widget_set_visible (GTK_WIDGET (self->spinner), FALSE);
+  
+  /* Hide save button by default (until we have an image) */
+  gtk_widget_set_visible (GTK_WIDGET (self->save_button), FALSE);
   
   gtk_label_set_text (self->status_label, "Ready");
 } 

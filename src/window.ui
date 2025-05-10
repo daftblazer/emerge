@@ -396,6 +396,20 @@
                           </object>
                         </child>
                         <child>
+                          <object class="GtkButton" id="save_button">
+                            <property name="child">
+                              <object class="AdwButtonContent">
+                                <property name="icon-name">document-save-symbolic</property>
+                                <property name="label" translatable="yes">Save Image</property>
+                              </object>
+                            </property>
+                            <style>
+                              <class name="suggested-action"/>
+                            </style>
+                            <signal name="clicked" handler="on_save_clicked" swapped="no"/>
+                          </object>
+                        </child>
+                        <child>
                           <object class="GtkButton" id="generate_button">
                             <property name="child">
                               <object class="AdwButtonContent">
