@@ -1,13 +1,49 @@
+# Build directories
 build/
+_build/
+
+# IDE files
 .vscode/
+.idea/
+
+# Temporary files
 *~
 .DS_Store
 .directory
-_build/
+*.swp
+
+# Python files
 __pycache__/
 *.py[cod]
-*.so
+
+# Object files
 *.o
+*.obj
+*.elf
+
+# Libraries
+*.so
+*.a
 *.la
 *.lo
-*.swp 
+lib/
+
+# Binaries
+bin/
+*.exe
+*.out
+*.app
+
+# Generated files
+include/
+stable-gtk-output.png
+*.png
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb 
+
+# Copy dependencies for Stable Diffusion
+copy_deps.sh

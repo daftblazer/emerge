@@ -4,98 +4,121 @@
   <requires lib="libadwaita" version="1.0"/>
   <template class="StableGtkWindow" parent="AdwApplicationWindow">
     <property name="title" translatable="yes">Stable GTK</property>
-    <property name="default-width">1000</property>
+    <property name="default-width">1200</property>
     <property name="default-height">800</property>
-    <child>
+    <property name="content">
       <object class="AdwToastOverlay" id="toast_overlay">
-        <child>
-          <object class="GtkBox">
-            <property name="orientation">vertical</property>
-            <child>
-              <object class="GtkHeaderBar" id="header_bar">
-                <child type="title">
+        <property name="child">
+          <object class="AdwToolbarView">
+            <child type="top">
+              <object class="AdwHeaderBar">
+                <property name="centering-policy">strict</property>
+                <property name="title-widget">
                   <object class="AdwWindowTitle">
                     <property name="title" translatable="yes">Stable GTK</property>
-                    <property name="subtitle" translatable="yes">GTK Frontend for Stable-Diffusion.cpp</property>
+                    <property name="subtitle" translatable="yes">AI Image Generation</property>
                   </object>
-                </child>
+                </property>
               </object>
             </child>
-            <child>
-              <object class="GtkPaned">
-                <property name="position">500</property>
-                <property name="vexpand">true</property>
-                <property name="hexpand">true</property>
-                <property name="wide-handle">true</property>
+            <property name="content">
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="spacing">12</property>
+                <property name="margin-start">18</property>
+                <property name="margin-end">18</property>
+                <property name="margin-top">18</property>
+                <property name="margin-bottom">18</property>
+                
+                <!-- Prompt Section - Top -->
                 <child>
-                  <object class="GtkScrolledWindow">
-                    <property name="hscrollbar-policy">never</property>
+                  <object class="AdwPreferencesGroup">
+                    <property name="title" translatable="yes">Prompts</property>
+                    <child>
+                      <object class="AdwEntryRow" id="prompt_entry">
+                        <property name="title" translatable="yes">Positive Prompt</property>
+                        <property name="use-underline">True</property>
+                        <property name="use-markup">False</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="AdwEntryRow" id="negative_prompt_entry">
+                        <property name="title" translatable="yes">Negative Prompt</property>
+                        <property name="use-underline">True</property>
+                        <property name="use-markup">False</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                
+                <!-- Main Content Area -->
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">horizontal</property>
+                    <property name="spacing">18</property>
+                    <property name="hexpand">true</property>
+                    <property name="vexpand">true</property>
+                    
+                    <!-- Image Output - Center -->
                     <child>
                       <object class="GtkBox">
                         <property name="orientation">vertical</property>
-                        <property name="margin-start">12</property>
-                        <property name="margin-end">12</property>
-                        <property name="margin-top">12</property>
-                        <property name="margin-bottom">12</property>
+                        <property name="hexpand">true</property>
+                        <property name="vexpand">true</property>
+                        <property name="halign">fill</property>
+                        <property name="valign">fill</property>
+                        <style>
+                          <class name="card"/>
+                          <class name="view"/>
+                        </style>
+                        <child>
+                          <object class="GtkScrolledWindow">
+                            <property name="hexpand">true</property>
+                            <property name="vexpand">true</property>
+                            <property name="min-content-height">400</property>
+                            <child>
+                              <object class="GtkViewport">
+                                <property name="hexpand">true</property>
+                                <property name="vexpand">true</property>
+                                <child>
+                                  <object class="GtkPicture" id="output_image">
+                                    <property name="can-shrink">true</property>
+                                    <property name="keep-aspect-ratio">true</property>
+                                    <property name="content-fit">contain</property>
+                                    <property name="hexpand">true</property>
+                                    <property name="vexpand">true</property>
+                                    <property name="alternative-text" translatable="yes">Generated image will appear here</property>
+                                  </object>
+                                </child>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    
+                    <!-- Settings - Right Side -->
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">vertical</property>
                         <property name="spacing">12</property>
+                        <property name="width-request">300</property>
                         
                         <!-- Model Selection -->
                         <child>
-                          <object class="GtkBox">
-                            <property name="orientation">horizontal</property>
-                            <property name="spacing">6</property>
-                            <child>
-                              <object class="GtkLabel">
-                                <property name="label" translatable="yes">Model:</property>
-                                <property name="xalign">0</property>
-                                <property name="width-request">80</property>
-                              </object>
-                            </child>
+                          <object class="AdwPreferencesGroup">
+                            <property name="title" translatable="yes">Model</property>
                             <child>
                               <object class="GtkButton" id="model_chooser">
-                                <property name="hexpand">true</property>
-                                <property name="label" translatable="yes">Select Model File</property>
+                                <property name="child">
+                                  <object class="AdwButtonContent">
+                                    <property name="icon-name">document-open-symbolic</property>
+                                    <property name="label" translatable="yes">Select Model File</property>
+                                  </object>
+                                </property>
+                                <property name="margin-top">6</property>
+                                <property name="margin-bottom">6</property>
                                 <signal name="clicked" handler="on_model_file_select" swapped="no"/>
-                              </object>
-                            </child>
-                          </object>
-                        </child>
-                        
-                        <!-- Prompt Entry -->
-                        <child>
-                          <object class="GtkBox">
-                            <property name="orientation">vertical</property>
-                            <property name="spacing">6</property>
-                            <child>
-                              <object class="GtkLabel">
-                                <property name="label" translatable="yes">Prompt:</property>
-                                <property name="xalign">0</property>
-                              </object>
-                            </child>
-                            <child>
-                              <object class="GtkEntry" id="prompt_entry">
-                                <property name="hexpand">true</property>
-                                <property name="placeholder-text" translatable="yes">Enter your prompt here...</property>
-                              </object>
-                            </child>
-                          </object>
-                        </child>
-                        
-                        <!-- Negative Prompt Entry -->
-                        <child>
-                          <object class="GtkBox">
-                            <property name="orientation">vertical</property>
-                            <property name="spacing">6</property>
-                            <child>
-                              <object class="GtkLabel">
-                                <property name="label" translatable="yes">Negative Prompt:</property>
-                                <property name="xalign">0</property>
-                              </object>
-                            </child>
-                            <child>
-                              <object class="GtkEntry" id="negative_prompt_entry">
-                                <property name="hexpand">true</property>
-                                <property name="placeholder-text" translatable="yes">Enter your negative prompt here...</property>
                               </object>
                             </child>
                           </object>
@@ -104,61 +127,41 @@
                         <!-- Image Size Settings -->
                         <child>
                           <object class="AdwPreferencesGroup">
-                            <property name="title" translatable="yes">Image Settings</property>
+                            <property name="title" translatable="yes">Image Size</property>
                             <child>
-                              <object class="GtkGrid">
-                                <property name="row-spacing">6</property>
-                                <property name="column-spacing">12</property>
-                                <child>
-                                  <object class="GtkLabel">
-                                    <property name="label" translatable="yes">Width:</property>
-                                    <property name="xalign">0</property>
-                                    <layout>
-                                      <property name="column">0</property>
-                                      <property name="row">0</property>
-                                    </layout>
-                                  </object>
-                                </child>
+                              <object class="AdwActionRow">
+                                <property name="title" translatable="yes">Width</property>
                                 <child>
                                   <object class="GtkSpinButton" id="width_spin">
+                                    <property name="valign">center</property>
                                     <property name="adjustment">
                                       <object class="GtkAdjustment">
                                         <property name="lower">64</property>
                                         <property name="upper">2048</property>
                                         <property name="step-increment">8</property>
                                         <property name="page-increment">64</property>
+                                        <property name="value">512</property>
                                       </object>
                                     </property>
-                                    <layout>
-                                      <property name="column">1</property>
-                                      <property name="row">0</property>
-                                    </layout>
                                   </object>
                                 </child>
-                                <child>
-                                  <object class="GtkLabel">
-                                    <property name="label" translatable="yes">Height:</property>
-                                    <property name="xalign">0</property>
-                                    <layout>
-                                      <property name="column">2</property>
-                                      <property name="row">0</property>
-                                    </layout>
-                                  </object>
-                                </child>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="AdwActionRow">
+                                <property name="title" translatable="yes">Height</property>
                                 <child>
                                   <object class="GtkSpinButton" id="height_spin">
+                                    <property name="valign">center</property>
                                     <property name="adjustment">
                                       <object class="GtkAdjustment">
                                         <property name="lower">64</property>
                                         <property name="upper">2048</property>
                                         <property name="step-increment">8</property>
                                         <property name="page-increment">64</property>
+                                        <property name="value">512</property>
                                       </object>
                                     </property>
-                                    <layout>
-                                      <property name="column">3</property>
-                                      <property name="row">0</property>
-                                    </layout>
                                   </object>
                                 </child>
                               </object>
@@ -171,47 +174,30 @@
                           <object class="AdwPreferencesGroup">
                             <property name="title" translatable="yes">Generation Settings</property>
                             <child>
-                              <object class="GtkGrid">
-                                <property name="row-spacing">6</property>
-                                <property name="column-spacing">12</property>
-                                <child>
-                                  <object class="GtkLabel">
-                                    <property name="label" translatable="yes">Steps:</property>
-                                    <property name="xalign">0</property>
-                                    <layout>
-                                      <property name="column">0</property>
-                                      <property name="row">0</property>
-                                    </layout>
-                                  </object>
-                                </child>
+                              <object class="AdwActionRow">
+                                <property name="title" translatable="yes">Steps</property>
                                 <child>
                                   <object class="GtkSpinButton" id="steps_spin">
+                                    <property name="valign">center</property>
                                     <property name="adjustment">
                                       <object class="GtkAdjustment">
                                         <property name="lower">1</property>
                                         <property name="upper">150</property>
+                                        <property name="value">20</property>
                                         <property name="step-increment">1</property>
                                         <property name="page-increment">5</property>
                                       </object>
                                     </property>
-                                    <layout>
-                                      <property name="column">1</property>
-                                      <property name="row">0</property>
-                                    </layout>
                                   </object>
                                 </child>
-                                <child>
-                                  <object class="GtkLabel">
-                                    <property name="label" translatable="yes">CFG Scale:</property>
-                                    <property name="xalign">0</property>
-                                    <layout>
-                                      <property name="column">0</property>
-                                      <property name="row">1</property>
-                                    </layout>
-                                  </object>
-                                </child>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="AdwActionRow">
+                                <property name="title" translatable="yes">CFG Scale</property>
                                 <child>
                                   <object class="GtkSpinButton" id="cfg_scale_spin">
+                                    <property name="valign">center</property>
                                     <property name="adjustment">
                                       <object class="GtkAdjustment">
                                         <property name="lower">1.0</property>
@@ -222,54 +208,35 @@
                                       </object>
                                     </property>
                                     <property name="digits">1</property>
-                                    <layout>
-                                      <property name="column">1</property>
-                                      <property name="row">1</property>
-                                    </layout>
                                   </object>
                                 </child>
-                                <child>
-                                  <object class="GtkLabel">
-                                    <property name="label" translatable="yes">Seed:</property>
-                                    <property name="xalign">0</property>
-                                    <layout>
-                                      <property name="column">2</property>
-                                      <property name="row">0</property>
-                                    </layout>
-                                  </object>
-                                </child>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="AdwActionRow">
+                                <property name="title" translatable="yes">Seed</property>
                                 <child>
                                   <object class="GtkSpinButton" id="seed_spin">
+                                    <property name="valign">center</property>
                                     <property name="adjustment">
                                       <object class="GtkAdjustment">
                                         <property name="lower">-1</property>
                                         <property name="upper">2147483647</property>
+                                        <property name="value">-1</property>
                                         <property name="step-increment">1</property>
                                         <property name="page-increment">1000</property>
                                       </object>
                                     </property>
-                                    <layout>
-                                      <property name="column">3</property>
-                                      <property name="row">0</property>
-                                    </layout>
                                   </object>
                                 </child>
-                                <child>
-                                  <object class="GtkLabel">
-                                    <property name="label" translatable="yes">Sampler:</property>
-                                    <property name="xalign">0</property>
-                                    <layout>
-                                      <property name="column">2</property>
-                                      <property name="row">1</property>
-                                    </layout>
-                                  </object>
-                                </child>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="AdwActionRow">
+                                <property name="title" translatable="yes">Sampler</property>
                                 <child>
                                   <object class="GtkDropDown" id="sampling_method_dropdown">
-                                    <layout>
-                                      <property name="column">3</property>
-                                      <property name="row">1</property>
-                                    </layout>
+                                    <property name="valign">center</property>
                                   </object>
                                 </child>
                               </object>
@@ -277,57 +244,35 @@
                           </object>
                         </child>
                         
-                        <!-- Img2Img Toggle -->
+                        <!-- Img2Img Settings -->
                         <child>
-                          <object class="GtkBox">
-                            <property name="orientation">vertical</property>
-                            <property name="spacing">6</property>
+                          <object class="AdwPreferencesGroup">
+                            <property name="title" translatable="yes">Image to Image</property>
                             <child>
-                              <object class="GtkBox">
-                                <property name="orientation">horizontal</property>
-                                <property name="spacing">12</property>
-                                <child>
-                                  <object class="GtkToggleButton" id="img2img_toggle">
-                                    <property name="label" translatable="yes">Image to Image Mode</property>
-                                    <property name="halign">start</property>
-                                    <signal name="toggled" handler="on_img2img_toggled" swapped="no"/>
-                                  </object>
-                                </child>
+                              <object class="AdwSwitchRow" id="img2img_toggle">
+                                <property name="title" translatable="yes">Enable Image to Image Mode</property>
+                                <signal name="notify::active" handler="on_img2img_toggled" swapped="no"/>
                               </object>
                             </child>
                             <child>
-                              <object class="GtkBox">
-                                <property name="orientation">horizontal</property>
-                                <property name="spacing">6</property>
-                                <child>
-                                  <object class="GtkLabel">
-                                    <property name="label" translatable="yes">Input image:</property>
-                                    <property name="xalign">0</property>
-                                    <property name="width-request">80</property>
-                                  </object>
-                                </child>
-                                <child>
-                                  <object class="GtkButton" id="initial_image_chooser">
-                                    <property name="hexpand">true</property>
+                              <object class="GtkButton" id="initial_image_chooser">
+                                <property name="child">
+                                  <object class="AdwButtonContent">
+                                    <property name="icon-name">image-x-generic-symbolic</property>
                                     <property name="label" translatable="yes">Select Input Image</property>
-                                    <signal name="clicked" handler="on_initial_image_file_select" swapped="no"/>
                                   </object>
-                                </child>
+                                </property>
+                                <property name="margin-top">6</property>
+                                <property name="margin-bottom">6</property>
+                                <signal name="clicked" handler="on_initial_image_file_select" swapped="no"/>
                               </object>
                             </child>
                             <child>
-                              <object class="GtkBox">
-                                <property name="orientation">horizontal</property>
-                                <property name="spacing">6</property>
-                                <child>
-                                  <object class="GtkLabel">
-                                    <property name="label" translatable="yes">Strength:</property>
-                                    <property name="xalign">0</property>
-                                    <property name="width-request">80</property>
-                                  </object>
-                                </child>
+                              <object class="AdwActionRow">
+                                <property name="title" translatable="yes">Strength</property>
                                 <child>
                                   <object class="GtkSpinButton" id="strength_spin">
+                                    <property name="valign">center</property>
                                     <property name="adjustment">
                                       <object class="GtkAdjustment">
                                         <property name="lower">0.0</property>
@@ -338,7 +283,6 @@
                                       </object>
                                     </property>
                                     <property name="digits">2</property>
-                                    <property name="hexpand">false</property>
                                   </object>
                                 </child>
                               </object>
@@ -346,30 +290,27 @@
                           </object>
                         </child>
                         
-                        <!-- Advanced Settings Toggle -->
+                        <!-- Advanced Settings -->
                         <child>
-                          <object class="GtkToggleButton" id="advanced_settings_toggle">
-                            <property name="label" translatable="yes">Advanced Settings</property>
-                            <property name="halign">start</property>
-                            <signal name="toggled" handler="on_advanced_settings_toggled" swapped="no"/>
-                          </object>
-                        </child>
-                        
-                        <!-- Advanced Settings Box -->
-                        <child>
-                          <object class="GtkBox" id="advanced_settings_box">
-                            <property name="orientation">vertical</property>
-                            <property name="spacing">12</property>
-                            <property name="margin-top">12</property>
+                          <object class="AdwExpanderRow" id="advanced_settings_toggle">
+                            <property name="title" translatable="yes">Advanced Settings</property>
+                            <signal name="notify::expanded" handler="on_advanced_settings_toggled" swapped="no"/>
                             <child>
-                              <object class="AdwPreferencesGroup">
-                                <property name="title" translatable="yes">Advanced Options</property>
+                              <object class="GtkBox" id="advanced_settings_box">
+                                <property name="orientation">vertical</property>
+                                <property name="spacing">12</property>
+                                <property name="margin-top">12</property>
+                                <property name="margin-bottom">12</property>
+                                <property name="margin-start">12</property>
+                                <property name="margin-end">12</property>
                                 <child>
                                   <object class="GtkLabel">
                                     <property name="label" translatable="yes">This section will be expanded with more options in future versions.</property>
                                     <property name="xalign">0</property>
+                                    <property name="wrap">true</property>
                                     <style>
                                       <class name="dim-label"/>
+                                      <class name="caption"/>
                                     </style>
                                   </object>
                                 </child>
@@ -377,97 +318,89 @@
                             </child>
                           </object>
                         </child>
-                        
-                        <!-- Generate Button -->
-                        <child>
-                          <object class="GtkBox">
-                            <property name="orientation">horizontal</property>
-                            <property name="spacing">12</property>
-                            <property name="margin-top">12</property>
-                            <child>
-                              <object class="GtkButton" id="generate_button">
-                                <property name="label" translatable="yes">Generate</property>
-                                <property name="halign">start</property>
-                                <style>
-                                  <class name="suggested-action"/>
-                                </style>
-                                <signal name="clicked" handler="on_generate_clicked" swapped="no"/>
-                              </object>
-                            </child>
-                            <child>
-                              <object class="GtkButton" id="stop_button">
-                                <property name="label" translatable="yes">Stop</property>
-                                <property name="halign">start</property>
-                                <style>
-                                  <class name="destructive-action"/>
-                                </style>
-                                <signal name="clicked" handler="on_stop_clicked" swapped="no"/>
-                              </object>
-                            </child>
-                            <child>
-                              <object class="GtkSpinner" id="spinner">
-                                <property name="spinning">false</property>
-                              </object>
-                            </child>
-                            <child>
-                              <object class="GtkLabel" id="status_label">
-                                <property name="hexpand">true</property>
-                                <property name="xalign">0</property>
-                                <property name="label">Ready</property>
-                                <property name="margin-start">12</property>
-                              </object>
-                            </child>
-                          </object>
-                        </child>
-                        
-                        <!-- Progress Bar -->
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                
+                <!-- Controls Section - Bottom -->
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">vertical</property>
+                    <property name="spacing">12</property>
+                    <property name="margin-top">12</property>
+                    
+                    <!-- Progress Bar -->
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">horizontal</property>
+                        <property name="spacing">12</property>
                         <child>
                           <object class="GtkProgressBar" id="progress_bar">
                             <property name="hexpand">true</property>
+                            <property name="valign">center</property>
                           </object>
                         </child>
-                        
+                        <child>
+                          <object class="GtkSpinner" id="spinner">
+                            <property name="spinning">false</property>
+                            <property name="valign">center</property>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkLabel" id="status_label">
+                            <property name="xalign">0</property>
+                            <property name="label">Ready</property>
+                            <property name="valign">center</property>
+                            <property name="width-request">120</property>
+                          </object>
+                        </child>
                       </object>
                     </child>
-                  </object>
-                </child>
-                
-                <!-- Output View -->
-                <child>
-                  <object class="GtkScrolledWindow">
-                    <property name="hexpand">true</property>
-                    <property name="vexpand">true</property>
+                    
+                    <!-- Action Buttons -->
                     <child>
                       <object class="GtkBox">
-                        <property name="orientation">vertical</property>
-                        <property name="valign">center</property>
-                        <property name="halign">center</property>
-                        <property name="margin-top">12</property>
-                        <property name="margin-bottom">12</property>
-                        <property name="margin-start">12</property>
-                        <property name="margin-end">12</property>
+                        <property name="orientation">horizontal</property>
                         <property name="spacing">12</property>
+                        <property name="halign">end</property>
                         <child>
-                          <object class="GtkPicture" id="output_image">
-                            <property name="can-shrink">true</property>
-                            <property name="keep-aspect-ratio">true</property>
-                            <property name="hexpand">true</property>
-                            <property name="vexpand">true</property>
+                          <object class="GtkButton" id="stop_button">
+                            <property name="child">
+                              <object class="AdwButtonContent">
+                                <property name="icon-name">process-stop-symbolic</property>
+                                <property name="label" translatable="yes">Stop</property>
+                              </object>
+                            </property>
                             <style>
-                              <class name="card"/>
+                              <class name="destructive-action"/>
                             </style>
+                            <signal name="clicked" handler="on_stop_clicked" swapped="no"/>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="GtkButton" id="generate_button">
+                            <property name="child">
+                              <object class="AdwButtonContent">
+                                <property name="icon-name">media-playback-start-symbolic</property>
+                                <property name="label" translatable="yes">Generate</property>
+                              </object>
+                            </property>
+                            <style>
+                              <class name="suggested-action"/>
+                            </style>
+                            <signal name="clicked" handler="on_generate_clicked" swapped="no"/>
                           </object>
                         </child>
                       </object>
                     </child>
                   </object>
                 </child>
-                
               </object>
-            </child>
+            </property>
           </object>
-        </child>
+        </property>
       </object>
-    </child>
+    </property>
   </template>
 </interface> 

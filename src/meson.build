@@ -14,6 +14,10 @@ stable_gtk_resources = gnome.compile_resources(
 stable_gtk_deps = [
   dependency('gtk4'),
   dependency('libadwaita-1'),
+  declare_dependency(
+    include_directories: sd_inc,
+    dependencies: [sd_lib, ggml_lib, ggml_vulkan_lib]
+  )
 ]
 
 executable('stable-gtk', 

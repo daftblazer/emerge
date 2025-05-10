@@ -223,6 +223,7 @@ on_generate_clicked (GtkButton *button,
   gchar **argv = NULL;
   GError *error = NULL;
   gint argc;
+  gchar *sd_path;
   
   if (self->is_generating)
     return;
@@ -235,15 +236,20 @@ on_generate_clicked (GtkButton *button,
   
   self->output_path = g_build_filename (g_get_tmp_dir (), "stable-gtk-output.png", NULL);
   
+  /* Get the absolute path to the sd binary */
+  sd_path = g_build_filename ("/run/media/system/Projects/Coding/Stable-GTK", "bin", "sd", NULL);
+  
   /* Prepare the command line */
   if (gtk_toggle_button_get_active (self->img2img_toggle)) {
     if (self->initial_image_path == NULL) {
       adw_toast_overlay_add_toast (self->toast_overlay,
                                  adw_toast_new ("Please select an initial image for img2img"));
+      g_free(sd_path);
       return;
     }
     
-    command_line = g_strdup_printf ("sd --mode img2img -m \"%s\" -p \"%s\" -n \"%s\" -W %d -H %d --steps %d --seed %ld --cfg-scale %.1f --sampling-method %s -o \"%s\" -i \"%s\" --strength %.2f",
+    command_line = g_strdup_printf ("\"%s\" --mode img2img --model \"%s\" --prompt \"%s\" --negative-prompt \"%s\" --width %d --height %d --steps %d --seed %ld --cfg-scale %.1f --sampling-method %s --output \"%s\" --input \"%s\" --strength %.2f --vae-tiling",
+                                    sd_path,
                                     self->model_path,
                                     gtk_editable_get_text (GTK_EDITABLE (self->prompt_entry)),
                                     gtk_editable_get_text (GTK_EDITABLE (self->negative_prompt_entry)),
@@ -258,7 +264,8 @@ on_generate_clicked (GtkButton *button,
                                     self->initial_image_path,
                                     gtk_spin_button_get_value (self->strength_spin));
   } else {
-    command_line = g_strdup_printf ("sd -m \"%s\" -p \"%s\" -n \"%s\" -W %d -H %d --steps %d --seed %ld --cfg-scale %.1f --sampling-method %s -o \"%s\"",
+    command_line = g_strdup_printf ("\"%s\" --model \"%s\" --prompt \"%s\" --negative-prompt \"%s\" --width %d --height %d --steps %d --seed %ld --cfg-scale %.1f --sampling-method %s --output \"%s\" --vae-tiling",
+                                    sd_path,
                                     self->model_path,
                                     gtk_editable_get_text (GTK_EDITABLE (self->prompt_entry)),
                                     gtk_editable_get_text (GTK_EDITABLE (self->negative_prompt_entry)),
@@ -271,6 +278,8 @@ on_generate_clicked (GtkButton *button,
                                       gtk_drop_down_get_selected_item (self->sampling_method_dropdown))),
                                     self->output_path);
   }
+  
+  g_free(sd_path);
   
   /* Parse the command line */
   if (!g_shell_parse_argv (command_line, &argc, &argv, &error)) {

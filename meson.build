@@ -22,6 +22,13 @@ add_project_arguments([
 gnome = import('gnome')
 i18n = import('i18n')
 
+# Use local stable-diffusion.cpp libraries
+sd_inc = include_directories('include')
+sd_lib_dir = meson.current_source_dir() / 'lib'
+sd_lib = meson.get_compiler('c').find_library('stable-diffusion', dirs: sd_lib_dir)
+ggml_lib = meson.get_compiler('c').find_library('ggml', dirs: sd_lib_dir)
+ggml_vulkan_lib = meson.get_compiler('c').find_library('ggml-vulkan', dirs: sd_lib_dir)
+
 subdir('src')
 
 gnome.post_install(
