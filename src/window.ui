@@ -161,7 +161,7 @@
                               </object>
                             </child>
                             <child>
-                              <object class="AdwActionRow">
+                              <object class="AdwActionRow" id="quantization_label">
                                 <property name="title" translatable="yes">Quantization Type</property>
                                 <property name="hexpand">true</property>
                                 <child>

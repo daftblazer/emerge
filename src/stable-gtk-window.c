@@ -34,6 +34,7 @@ struct _StableGtkWindow
   GtkLabel            *status_label;
   GtkButton           *convert_model_button;
   GtkDropDown         *quantization_dropdown;
+  GtkWidget           *quantization_label;
 
   /* Generation state */
   GPid                child_pid;
@@ -132,11 +133,15 @@ model_open_response (GObject *source_object,
   g_free (button_text);
   g_free (basename);
   
-  /* Enable convert button if it's a safetensors file */
+  /* Enable convert button and show quantization dropdown if it's a safetensors file */
   if (g_str_has_suffix (self->model_path, ".safetensors")) {
     gtk_widget_set_sensitive (GTK_WIDGET (self->convert_model_button), TRUE);
+    gtk_widget_set_visible (GTK_WIDGET (self->quantization_dropdown), TRUE);
+    gtk_widget_set_visible (GTK_WIDGET (self->quantization_label), TRUE);
   } else {
     gtk_widget_set_sensitive (GTK_WIDGET (self->convert_model_button), FALSE);
+    gtk_widget_set_visible (GTK_WIDGET (self->quantization_dropdown), FALSE);
+    gtk_widget_set_visible (GTK_WIDGET (self->quantization_label), FALSE);
   }
   
   g_object_unref (file);
@@ -787,6 +792,7 @@ stable_gtk_window_class_init (StableGtkWindowClass *klass)
   gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, status_label);
   gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, convert_model_button);
   gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, quantization_dropdown);
+  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, quantization_label);
   
   gtk_widget_class_bind_template_callback (widget_class, on_generate_clicked);
   gtk_widget_class_bind_template_callback (widget_class, on_stop_clicked);
@@ -852,6 +858,11 @@ stable_gtk_window_init (StableGtkWindow *self)
   /* Hide save button by default (until we have an image) */
   gtk_widget_set_visible (GTK_WIDGET (self->save_button), FALSE);
   
+  /* Hide conversion-related UI elements by default */
+  gtk_widget_set_visible (GTK_WIDGET (self->quantization_dropdown), FALSE);
+  gtk_widget_set_visible (GTK_WIDGET (self->quantization_label), FALSE);
+  gtk_widget_set_sensitive (GTK_WIDGET (self->convert_model_button), FALSE);
+  
   gtk_label_set_text (self->status_label, "Ready");
   
   /* Set up quantization options for GGUF conversion */
@@ -866,7 +877,4 @@ stable_gtk_window_init (StableGtkWindow *self)
   /* Default to q8_0 (index 2) */
   gtk_drop_down_set_selected (self->quantization_dropdown, 2);
   g_object_unref (quant_types);
-  
-  /* Disable convert button until model is selected */
-  gtk_widget_set_sensitive (GTK_WIDGET (self->convert_model_button), FALSE);
 } 
