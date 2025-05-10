@@ -32,6 +32,8 @@ struct _StableGtkWindow
   GtkToggleButton     *img2img_toggle;
   GtkSpinButton       *strength_spin;
   GtkLabel            *status_label;
+  GtkButton           *convert_model_button;
+  GtkDropDown         *quantization_dropdown;
 
   /* Generation state */
   GPid                child_pid;
@@ -129,6 +131,13 @@ model_open_response (GObject *source_object,
   gtk_button_set_label (self->model_chooser, button_text);
   g_free (button_text);
   g_free (basename);
+  
+  /* Enable convert button if it's a safetensors file */
+  if (g_str_has_suffix (self->model_path, ".safetensors")) {
+    gtk_widget_set_sensitive (GTK_WIDGET (self->convert_model_button), TRUE);
+  } else {
+    gtk_widget_set_sensitive (GTK_WIDGET (self->convert_model_button), FALSE);
+  }
   
   g_object_unref (file);
 }
@@ -510,6 +519,219 @@ on_advanced_settings_toggled (GtkToggleButton *button,
 }
 
 static void
+convert_process_finished_cb (GPid pid, gint status, gpointer user_data)
+{
+  StableGtkWindow *self = STABLE_GTK_WINDOW (user_data);
+  
+  /* Re-enable UI */
+  gtk_widget_set_sensitive (GTK_WIDGET (self->convert_model_button), TRUE);
+  gtk_widget_set_sensitive (GTK_WIDGET (self->model_chooser), TRUE);
+  gtk_spinner_stop (self->spinner);
+  gtk_widget_set_visible (GTK_WIDGET (self->spinner), FALSE);
+  
+  if (g_cancellable_is_cancelled (self->cancellable)) {
+    gtk_label_set_text (self->status_label, "Cancelled");
+    adw_toast_overlay_add_toast (self->toast_overlay,
+                               adw_toast_new ("Conversion cancelled"));
+  } else if (status == 0) {
+    gtk_label_set_text (self->status_label, "Done");
+    adw_toast_overlay_add_toast (self->toast_overlay,
+                               adw_toast_new ("Model converted successfully"));
+  } else {
+    gtk_label_set_text (self->status_label, "Failed");
+    adw_toast_overlay_add_toast (self->toast_overlay,
+                               adw_toast_new ("Model conversion failed"));
+  }
+  
+  g_spawn_close_pid (pid);
+  g_object_unref (self->cancellable);
+  self->cancellable = NULL;
+  self->child_pid = 0;
+  self->child_watch_id = 0;
+}
+
+static void
+convert_model_save_response (GObject *source_object,
+                           GAsyncResult *result,
+                           gpointer user_data)
+{
+  StableGtkWindow *self = STABLE_GTK_WINDOW (user_data);
+  GtkFileDialog *dialog = GTK_FILE_DIALOG (source_object);
+  GFile *file;
+  GError *error = NULL;
+  gchar *output_path;
+  const char *quant_type;
+  gchar *command_line;
+  gchar **argv = NULL;
+  gint argc;
+  gchar *sd_path;
+  
+  file = gtk_file_dialog_save_finish (dialog, result, &error);
+  if (file == NULL) {
+    if (!g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
+      g_warning ("Failed to save file: %s", error->message);
+    g_error_free (error);
+    return;
+  }
+  
+  output_path = g_file_get_path (file);
+  
+  /* Get quantization type from dropdown */
+  GtkStringObject *selected = gtk_drop_down_get_selected_item (self->quantization_dropdown);
+  quant_type = "q8_0"; /* Default to q8_0 */
+  if (selected) {
+    quant_type = gtk_string_object_get_string (selected);
+  }
+  
+  /* Set up UI for conversion */
+  gtk_spinner_start (self->spinner);
+  gtk_widget_set_visible (GTK_WIDGET (self->spinner), TRUE);
+  gtk_label_set_text (self->status_label, "Converting model...");
+  gtk_widget_set_sensitive (GTK_WIDGET (self->convert_model_button), FALSE);
+  gtk_widget_set_sensitive (GTK_WIDGET (self->model_chooser), FALSE);
+  
+  /* Get the absolute path to the sd binary */
+  sd_path = g_build_filename ("/run/media/system/Projects/Coding/Stable-GTK", "bin", "sd", NULL);
+  
+  /* Prepare the command line */
+  command_line = g_strdup_printf ("\"%s\" -M convert -m \"%s\" -o \"%s\" -v --type %s",
+                                 sd_path,
+                                 self->model_path,
+                                 output_path,
+                                 quant_type);
+  
+  g_free(sd_path);
+  
+  /* Parse the command line */
+  if (!g_shell_parse_argv (command_line, &argc, &argv, &error)) {
+    adw_toast_overlay_add_toast (self->toast_overlay,
+                               adw_toast_new (error->message));
+    g_error_free (error);
+    g_free (command_line);
+    g_strfreev (argv);
+    g_free (output_path);
+    g_object_unref (file);
+    
+    /* Reset UI */
+    gtk_widget_set_sensitive (GTK_WIDGET (self->convert_model_button), TRUE);
+    gtk_widget_set_sensitive (GTK_WIDGET (self->model_chooser), TRUE);
+    gtk_spinner_stop (self->spinner);
+    gtk_widget_set_visible (GTK_WIDGET (self->spinner), FALSE);
+    gtk_label_set_text (self->status_label, "Ready");
+    
+    return;
+  }
+  
+  /* Start the process */
+  self->cancellable = g_cancellable_new ();
+  
+  if (!g_spawn_async_with_pipes (NULL, argv, NULL, 
+                                G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD,
+                                NULL, NULL, &self->child_pid, 
+                                NULL, NULL, NULL, &error)) {
+    adw_toast_overlay_add_toast (self->toast_overlay,
+                               adw_toast_new (error->message));
+    g_error_free (error);
+    g_free (command_line);
+    g_strfreev (argv);
+    g_free (output_path);
+    g_object_unref (file);
+    
+    /* Reset UI */
+    gtk_widget_set_sensitive (GTK_WIDGET (self->convert_model_button), TRUE);
+    gtk_widget_set_sensitive (GTK_WIDGET (self->model_chooser), TRUE);
+    gtk_spinner_stop (self->spinner);
+    gtk_widget_set_visible (GTK_WIDGET (self->spinner), FALSE);
+    gtk_label_set_text (self->status_label, "Ready");
+    
+    return;
+  }
+  
+  g_free (command_line);
+  g_strfreev (argv);
+  g_free (output_path);
+  g_object_unref (file);
+  
+  /* Monitor the process */
+  self->child_watch_id = g_child_watch_add (self->child_pid, 
+                                          convert_process_finished_cb, self);
+}
+
+static void
+on_convert_model_clicked (GtkButton *button,
+                        gpointer   user_data)
+{
+  StableGtkWindow *self = STABLE_GTK_WINDOW (user_data);
+  GtkFileDialog *dialog;
+  GtkFileFilter *filter;
+  GListStore *filters;
+  gchar *suggested_filename;
+  
+  /* Check if a model has been selected */
+  if (self->model_path == NULL) {
+    adw_toast_overlay_add_toast (self->toast_overlay,
+                               adw_toast_new ("Please select a model file first"));
+    return;
+  }
+  
+  /* Check if it's a safetensors file */
+  if (!g_str_has_suffix (self->model_path, ".safetensors")) {
+    adw_toast_overlay_add_toast (self->toast_overlay,
+                               adw_toast_new ("Only .safetensors files can be converted"));
+    return;
+  }
+  
+  /* Get quantization type for suggested filename */
+  GtkStringObject *selected = gtk_drop_down_get_selected_item (self->quantization_dropdown);
+  const char *quant_type = "q8_0"; /* Default to q8_0 */
+  if (selected) {
+    quant_type = gtk_string_object_get_string (selected);
+  }
+  
+  /* Create file save dialog */
+  dialog = gtk_file_dialog_new();
+  gtk_file_dialog_set_title(dialog, "Save Converted Model");
+  
+  /* Get base filename without the extension */
+  gchar *basename = g_path_get_basename(self->model_path);
+  gchar *base_without_ext = g_strndup(basename, strlen(basename) - strlen(".safetensors"));
+  
+  /* Set default name */
+  suggested_filename = g_strdup_printf("%s.%s.gguf", base_without_ext, quant_type);
+  gtk_file_dialog_set_initial_name(dialog, suggested_filename);
+  g_free(suggested_filename);
+  g_free(base_without_ext);
+  g_free(basename);
+  
+  /* Set initial folder to same directory as source model */
+  gchar *dir_path = g_path_get_dirname(self->model_path);
+  GFile *initial_folder = g_file_new_for_path(dir_path);
+  gtk_file_dialog_set_initial_folder(dialog, initial_folder);
+  g_object_unref(initial_folder);
+  g_free(dir_path);
+  
+  /* Set up filter for GGUF files */
+  filter = gtk_file_filter_new();
+  gtk_file_filter_set_name(filter, "GGUF Model Files");
+  gtk_file_filter_add_pattern(filter, "*.gguf");
+  
+  filters = g_list_store_new(GTK_TYPE_FILE_FILTER);
+  g_list_store_append(filters, filter);
+  gtk_file_dialog_set_filters(dialog, G_LIST_MODEL(filters));
+  
+  /* Show the save dialog */
+  gtk_file_dialog_save(dialog,
+                      GTK_WINDOW(self),
+                      NULL,  /* cancellable */
+                      convert_model_save_response,
+                      self);
+  
+  g_object_unref(dialog);
+  g_object_unref(filter);
+  g_object_unref(filters);
+}
+
+static void
 stable_gtk_window_finalize (GObject *object)
 {
   StableGtkWindow *self = STABLE_GTK_WINDOW (object);
@@ -563,6 +785,8 @@ stable_gtk_window_class_init (StableGtkWindowClass *klass)
   gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, img2img_toggle);
   gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, strength_spin);
   gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, status_label);
+  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, convert_model_button);
+  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, quantization_dropdown);
   
   gtk_widget_class_bind_template_callback (widget_class, on_generate_clicked);
   gtk_widget_class_bind_template_callback (widget_class, on_stop_clicked);
@@ -571,6 +795,7 @@ stable_gtk_window_class_init (StableGtkWindowClass *klass)
   gtk_widget_class_bind_template_callback (widget_class, on_initial_image_file_select);
   gtk_widget_class_bind_template_callback (widget_class, on_img2img_toggled);
   gtk_widget_class_bind_template_callback (widget_class, on_advanced_settings_toggled);
+  gtk_widget_class_bind_template_callback (widget_class, on_convert_model_clicked);
 }
 
 static void
@@ -628,4 +853,20 @@ stable_gtk_window_init (StableGtkWindow *self)
   gtk_widget_set_visible (GTK_WIDGET (self->save_button), FALSE);
   
   gtk_label_set_text (self->status_label, "Ready");
+  
+  /* Set up quantization options for GGUF conversion */
+  GtkStringList *quant_types = gtk_string_list_new (NULL);
+  const char * const quant_type_names[] = {
+    "f16", "f32", "q8_0", "q5_0", "q5_1", "q4_0", "q4_1", NULL
+  };
+  for (int i = 0; quant_type_names[i] != NULL; i++) {
+    gtk_string_list_append (quant_types, quant_type_names[i]);
+  }
+  gtk_drop_down_set_model (self->quantization_dropdown, G_LIST_MODEL (quant_types));
+  /* Default to q8_0 (index 2) */
+  gtk_drop_down_set_selected (self->quantization_dropdown, 2);
+  g_object_unref (quant_types);
+  
+  /* Disable convert button until model is selected */
+  gtk_widget_set_sensitive (GTK_WIDGET (self->convert_model_button), FALSE);
 } 

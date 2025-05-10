@@ -147,6 +147,31 @@
                                 <signal name="clicked" handler="on_model_file_select" swapped="no"/>
                               </object>
                             </child>
+                            <child>
+                              <object class="GtkButton" id="convert_model_button">
+                                <property name="child">
+                                  <object class="AdwButtonContent">
+                                    <property name="icon-name">document-save-as-symbolic</property>
+                                    <property name="label" translatable="yes">Convert to GGUF</property>
+                                  </object>
+                                </property>
+                                <property name="margin-top">6</property>
+                                <property name="margin-bottom">6</property>
+                                <signal name="clicked" handler="on_convert_model_clicked" swapped="no"/>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="AdwActionRow">
+                                <property name="title" translatable="yes">Quantization Type</property>
+                                <property name="hexpand">true</property>
+                                <child>
+                                  <object class="GtkDropDown" id="quantization_dropdown">
+                                    <property name="valign">center</property>
+                                    <property name="width-request">85</property>
+                                  </object>
+                                </child>
+                              </object>
+                            </child>
                           </object>
                         </child>
                         
