@@ -2,8 +2,8 @@
 <interface>
   <requires lib="gtk" version="4.0"/>
   <requires lib="libadwaita" version="1.0"/>
-  <template class="StableGtkWindow" parent="AdwApplicationWindow">
-    <property name="title" translatable="yes">Stable GTK</property>
+  <template class="EmergeWindow" parent="AdwApplicationWindow">
+    <property name="title" translatable="yes">Emerge</property>
     <property name="default-width">1200</property>
     <property name="default-height">800</property>
     <property name="content">
@@ -11,11 +11,11 @@
         <property name="child">
           <object class="AdwToolbarView">
             <child type="top">
-              <object class="AdwHeaderBar">
+              <object class="AdwHeaderBar" id="header_bar">
                 <property name="centering-policy">strict</property>
                 <property name="title-widget">
                   <object class="AdwWindowTitle">
-                    <property name="title" translatable="yes">Stable GTK</property>
+                    <property name="title" translatable="yes">Emerge</property>
                     <property name="subtitle" translatable="yes">AI Image Generation</property>
                   </object>
                 </property>

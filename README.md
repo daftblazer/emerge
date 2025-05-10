@@ -1,4 +1,4 @@
-# Stable GTK
+# Emerge
 
 A modern GTK4 Libadwaita user interface for [Stable-Diffusion.cpp](https://github.com/leejet/stable-diffusion.cpp).
 
@@ -33,7 +33,7 @@ ninja
 ## Running
 
 ```bash
-./build/src/stable-gtk
+./build/src/emerge
 ```
 
 ## Installation

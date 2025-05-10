@@ -1,0 +1,27 @@
+app-id: com.github.emerge
+runtime: org.gnome.Platform
+runtime-version: '45'
+sdk: org.gnome.Sdk
+command: emerge
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  - --filesystem=home
+modules:
+  - name: emerge
+    builddir: true
+    buildsystem: meson
+    sources:
+      - type: dir
+        path: .
+  - name: stable-diffusion-cpp
+    buildsystem: simple
+    build-commands:
+      - cp -r lib/* /app/lib/
+      - cp -r include/* /app/include/
+      - cp -r bin/* /app/bin/
+    sources:
+      - type: dir
+        path: . 

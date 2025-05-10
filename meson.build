@@ -1,4 +1,4 @@
-project('stable-gtk', 'c',
+project('emerge', 'c',
         version: '0.1.0',
         license: 'MIT',
         meson_version: '>= 0.59.0',
@@ -15,7 +15,7 @@ localedir = join_paths(prefix, get_option('localedir'))
 
 # Add compiler args
 add_project_arguments([
-  '-DGETTEXT_PACKAGE="stable-gtk"',
+  '-DGETTEXT_PACKAGE="emerge"',
   '-DLOCALEDIR="' + localedir + '"',
 ], language: 'c')
 

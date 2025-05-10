@@ -1,11 +1,11 @@
-#include "stable-gtk-window.h"
+#include "emerge-window.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
 #include <time.h>
 #include <glib/gspawn.h>
 
-struct _StableGtkWindow
+struct _EmergeWindow
 {
   AdwApplicationWindow  parent_instance;
 
@@ -29,7 +29,7 @@ struct _StableGtkWindow
   GtkBox              *advanced_settings_box;
   GtkToggleButton     *advanced_settings_toggle;
   GtkButton           *initial_image_chooser;
-  GtkToggleButton     *img2img_toggle;
+  AdwSwitchRow        *img2img_toggle;
   GtkSpinButton       *strength_spin;
   GtkLabel            *status_label;
   GtkButton           *convert_model_button;
@@ -48,12 +48,12 @@ struct _StableGtkWindow
   gchar              *last_saved_dir;
 };
 
-G_DEFINE_TYPE (StableGtkWindow, stable_gtk_window, ADW_TYPE_APPLICATION_WINDOW)
+G_DEFINE_TYPE (EmergeWindow, emerge_window, ADW_TYPE_APPLICATION_WINDOW)
 
 static void
 process_finished_cb (GPid pid, gint status, gpointer user_data)
 {
-  StableGtkWindow *self = STABLE_GTK_WINDOW (user_data);
+  EmergeWindow *self = EMERGE_WINDOW (user_data);
   
   /* Re-enable UI */
   self->is_generating = FALSE;
@@ -110,7 +110,7 @@ model_open_response (GObject *source_object,
                    GAsyncResult *result,
                    gpointer user_data)
 {
-  StableGtkWindow *self = STABLE_GTK_WINDOW (user_data);
+  EmergeWindow *self = EMERGE_WINDOW (user_data);
   GtkFileDialog *dialog = GTK_FILE_DIALOG (source_object);
   GFile *file;
   GError *error = NULL;
@@ -148,10 +148,10 @@ model_open_response (GObject *source_object,
 }
 
 static void
-on_model_file_select (GtkButton *button,
+on_model_file_select (GtkButton *button G_GNUC_UNUSED,
                      gpointer   user_data)
 {
-  StableGtkWindow *self = STABLE_GTK_WINDOW (user_data);
+  EmergeWindow *self = EMERGE_WINDOW (user_data);
   GtkFileDialog *dialog;
   GtkFileFilter *filter;
   GListStore *filters;
@@ -185,7 +185,7 @@ image_open_response (GObject *source_object,
                    GAsyncResult *result,
                    gpointer user_data)
 {
-  StableGtkWindow *self = STABLE_GTK_WINDOW (user_data);
+  EmergeWindow *self = EMERGE_WINDOW (user_data);
   GtkFileDialog *dialog = GTK_FILE_DIALOG (source_object);
   GFile *file;
   GError *error = NULL;
@@ -223,10 +223,10 @@ image_open_response (GObject *source_object,
 }
 
 static void
-on_initial_image_file_select (GtkButton *button,
+on_initial_image_file_select (GtkButton *button G_GNUC_UNUSED,
                              gpointer   user_data)
 {
-  StableGtkWindow *self = STABLE_GTK_WINDOW (user_data);
+  EmergeWindow *self = EMERGE_WINDOW (user_data);
   GtkFileDialog *dialog;
   GtkFileFilter *filter;
   GListStore *filters;
@@ -259,7 +259,7 @@ save_image_response (GObject *source_object,
                     GAsyncResult *result,
                     gpointer user_data)
 {
-  StableGtkWindow *self = STABLE_GTK_WINDOW (user_data);
+  EmergeWindow *self = EMERGE_WINDOW (user_data);
   GtkFileDialog *dialog = GTK_FILE_DIALOG (source_object);
   GFile *file;
   GError *error = NULL;
@@ -300,10 +300,10 @@ save_image_response (GObject *source_object,
 }
 
 static void
-on_save_clicked (GtkButton *button,
+on_save_clicked (GtkButton *button G_GNUC_UNUSED,
                 gpointer   user_data)
 {
-  StableGtkWindow *self = STABLE_GTK_WINDOW (user_data);
+  EmergeWindow *self = EMERGE_WINDOW (user_data);
   GtkFileDialog *dialog;
   GtkFileFilter *filter;
   GListStore *filters;
@@ -352,10 +352,10 @@ on_save_clicked (GtkButton *button,
 }
 
 static void
-on_generate_clicked (GtkButton *button,
+on_generate_clicked (GtkButton *button G_GNUC_UNUSED,
                      gpointer   user_data)
 {
-  StableGtkWindow *self = STABLE_GTK_WINDOW (user_data);
+  EmergeWindow *self = EMERGE_WINDOW (user_data);
   gchar *command_line;
   gchar **argv = NULL;
   GError *error = NULL;
@@ -375,15 +375,18 @@ on_generate_clicked (GtkButton *button,
   g_free(self->output_path);
   
   // Create sequentially numbered output path
-  self->output_path = g_build_filename (g_get_tmp_dir (), 
-                                      g_strdup_printf("stable-gtk-output-%04d.png", self->image_counter++), 
-                                      NULL);
+  self->output_path = g_strdup_printf("emerge-output-%04d.png", self->image_counter++);
   
   /* Get the absolute path to the sd binary */
   sd_path = g_build_filename ("/run/media/system/Projects/Coding/Stable-GTK", "bin", "sd", NULL);
   
+  if (sd_path == NULL) {
+    /* If SD binary not in expected relative path, try the current working directory */
+    sd_path = g_build_filename ("/run/media/system/Projects/Coding/Stable-GTK", "bin", "sd", NULL);
+  }
+  
   /* Prepare the command line */
-  if (gtk_toggle_button_get_active (self->img2img_toggle)) {
+  if (adw_switch_row_get_active (self->img2img_toggle)) {
     if (self->initial_image_path == NULL) {
       adw_toast_overlay_add_toast (self->toast_overlay,
                                  adw_toast_new ("Please select an initial image for img2img"));
@@ -424,27 +427,6 @@ on_generate_clicked (GtkButton *button,
   
   g_free(sd_path);
   
-  /* Parse the command line */
-  if (!g_shell_parse_argv (command_line, &argc, &argv, &error)) {
-    adw_toast_overlay_add_toast (self->toast_overlay,
-                               adw_toast_new (error->message));
-    g_error_free (error);
-    g_free (command_line);
-    g_strfreev (argv);
-    
-    /* Re-enable UI */
-    self->is_generating = FALSE;
-    gtk_widget_set_sensitive (GTK_WIDGET (self->generate_button), TRUE);
-    gtk_widget_set_sensitive (GTK_WIDGET (self->model_chooser), TRUE);
-    gtk_widget_set_sensitive (GTK_WIDGET (self->initial_image_chooser), TRUE);
-    gtk_widget_set_visible (GTK_WIDGET (self->stop_button), FALSE);
-    gtk_spinner_stop (self->spinner);
-    gtk_widget_set_visible (GTK_WIDGET (self->spinner), FALSE);
-    gtk_label_set_text (self->status_label, "Ready");
-    
-    return;
-  }
-  
   /* Disable UI while generating */
   self->is_generating = TRUE;
   gtk_widget_set_sensitive (GTK_WIDGET (self->generate_button), FALSE);
@@ -457,6 +439,26 @@ on_generate_clicked (GtkButton *button,
   
   /* Start the process */
   self->cancellable = g_cancellable_new ();
+  
+  // Parse command_line into argv
+  if (!g_shell_parse_argv (command_line, &argc, &argv, &error)) {
+    adw_toast_overlay_add_toast (self->toast_overlay,
+                               adw_toast_new_format ("Error parsing command line: %s", error->message));
+    g_error_free (error);
+    g_free (command_line);
+    // Re-enable UI (copied from existing error handling)
+    self->is_generating = FALSE;
+    gtk_widget_set_sensitive (GTK_WIDGET (self->generate_button), TRUE);
+    gtk_widget_set_sensitive (GTK_WIDGET (self->model_chooser), TRUE);
+    gtk_widget_set_sensitive (GTK_WIDGET (self->initial_image_chooser), TRUE);
+    gtk_widget_set_visible (GTK_WIDGET (self->stop_button), FALSE);
+    gtk_spinner_stop (self->spinner);
+    gtk_widget_set_visible (GTK_WIDGET (self->spinner), FALSE);
+    gtk_label_set_text (self->status_label, "Ready");
+    g_object_unref(self->cancellable); // also unref cancellable here
+    self->cancellable = NULL;
+    return;
+  }
   
   if (!g_spawn_async_with_pipes (NULL, argv, NULL, 
                                 G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD,
@@ -490,10 +492,10 @@ on_generate_clicked (GtkButton *button,
 }
 
 static void
-on_stop_clicked (GtkButton *button,
+on_stop_clicked (GtkButton *button G_GNUC_UNUSED,
                  gpointer   user_data)
 {
-  StableGtkWindow *self = STABLE_GTK_WINDOW (user_data);
+  EmergeWindow *self = EMERGE_WINDOW (user_data);
   
   if (self->child_pid != 0) {
     g_cancellable_cancel (self->cancellable);
@@ -502,11 +504,11 @@ on_stop_clicked (GtkButton *button,
 }
 
 static void
-on_img2img_toggled (GtkToggleButton *button,
+on_img2img_toggled (AdwSwitchRow *button,
                     gpointer         user_data)
 {
-  StableGtkWindow *self = STABLE_GTK_WINDOW (user_data);
-  gboolean active = gtk_toggle_button_get_active (button);
+  EmergeWindow *self = EMERGE_WINDOW (user_data);
+  gboolean active = adw_switch_row_get_active (button);
   
   gtk_widget_set_visible (GTK_WIDGET (self->initial_image_chooser), active);
   gtk_widget_set_visible (GTK_WIDGET (self->strength_spin), active);
@@ -517,7 +519,7 @@ static void
 on_advanced_settings_toggled (GtkToggleButton *button,
                              gpointer         user_data)
 {
-  StableGtkWindow *self = STABLE_GTK_WINDOW (user_data);
+  EmergeWindow *self = EMERGE_WINDOW (user_data);
   gboolean active = gtk_toggle_button_get_active (button);
   
   gtk_widget_set_visible (GTK_WIDGET (self->advanced_settings_box), active);
@@ -526,7 +528,7 @@ on_advanced_settings_toggled (GtkToggleButton *button,
 static void
 convert_process_finished_cb (GPid pid, gint status, gpointer user_data)
 {
-  StableGtkWindow *self = STABLE_GTK_WINDOW (user_data);
+  EmergeWindow *self = EMERGE_WINDOW (user_data);
   
   /* Re-enable UI */
   gtk_widget_set_sensitive (GTK_WIDGET (self->convert_model_button), TRUE);
@@ -560,7 +562,7 @@ convert_model_save_response (GObject *source_object,
                            GAsyncResult *result,
                            gpointer user_data)
 {
-  StableGtkWindow *self = STABLE_GTK_WINDOW (user_data);
+  EmergeWindow *self = EMERGE_WINDOW (user_data);
   GtkFileDialog *dialog = GTK_FILE_DIALOG (source_object);
   GFile *file;
   GError *error = NULL;
@@ -663,10 +665,10 @@ convert_model_save_response (GObject *source_object,
 }
 
 static void
-on_convert_model_clicked (GtkButton *button,
+on_convert_model_clicked (GtkButton *button G_GNUC_UNUSED,
                         gpointer   user_data)
 {
-  StableGtkWindow *self = STABLE_GTK_WINDOW (user_data);
+  EmergeWindow *self = EMERGE_WINDOW (user_data);
   GtkFileDialog *dialog;
   GtkFileFilter *filter;
   GListStore *filters;
@@ -737,9 +739,9 @@ on_convert_model_clicked (GtkButton *button,
 }
 
 static void
-stable_gtk_window_finalize (GObject *object)
+emerge_window_finalize (GObject *object)
 {
-  StableGtkWindow *self = STABLE_GTK_WINDOW (object);
+  EmergeWindow *self = EMERGE_WINDOW (object);
   
   if (self->child_pid != 0) {
     kill (self->child_pid, SIGTERM);
@@ -755,44 +757,44 @@ stable_gtk_window_finalize (GObject *object)
   if (self->cancellable != NULL)
     g_object_unref (self->cancellable);
   
-  G_OBJECT_CLASS (stable_gtk_window_parent_class)->finalize (object);
+  G_OBJECT_CLASS (emerge_window_parent_class)->finalize (object);
 }
 
 static void
-stable_gtk_window_class_init (StableGtkWindowClass *klass)
+emerge_window_class_init (EmergeWindowClass *klass)
 {
   GObjectClass *object_class = G_OBJECT_CLASS (klass);
   GtkWidgetClass *widget_class = GTK_WIDGET_CLASS (klass);
   
-  object_class->finalize = stable_gtk_window_finalize;
+  object_class->finalize = emerge_window_finalize;
   
-  gtk_widget_class_set_template_from_resource (widget_class, "/com/github/stable-gtk/window.ui");
+  gtk_widget_class_set_template_from_resource (widget_class, "/com/github/emerge/window.ui");
   
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, header_bar);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, output_image);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, prompt_entry);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, negative_prompt_entry);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, width_spin);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, height_spin);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, steps_spin);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, seed_spin);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, cfg_scale_spin);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, sampling_method_dropdown);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, generate_button);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, stop_button);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, save_button);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, spinner);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, toast_overlay);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, model_chooser);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, advanced_settings_box);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, advanced_settings_toggle);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, initial_image_chooser);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, img2img_toggle);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, strength_spin);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, status_label);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, convert_model_button);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, quantization_dropdown);
-  gtk_widget_class_bind_template_child (widget_class, StableGtkWindow, quantization_label);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, header_bar);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, output_image);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, prompt_entry);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, negative_prompt_entry);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, width_spin);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, height_spin);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, steps_spin);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, seed_spin);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, cfg_scale_spin);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, sampling_method_dropdown);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, generate_button);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, stop_button);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, save_button);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, spinner);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, toast_overlay);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, model_chooser);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, advanced_settings_box);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, advanced_settings_toggle);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, initial_image_chooser);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, img2img_toggle);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, strength_spin);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, status_label);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, convert_model_button);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, quantization_dropdown);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, quantization_label);
   
   gtk_widget_class_bind_template_callback (widget_class, on_generate_clicked);
   gtk_widget_class_bind_template_callback (widget_class, on_stop_clicked);
@@ -805,7 +807,7 @@ stable_gtk_window_class_init (StableGtkWindowClass *klass)
 }
 
 static void
-stable_gtk_window_init (StableGtkWindow *self)
+emerge_window_init (EmergeWindow *self)
 {
   GtkStringList *sampling_methods;
   

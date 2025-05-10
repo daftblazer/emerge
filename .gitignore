@@ -1,6 +1,9 @@
 # Build directories
 build/
 _build/
+build-cmake/
+appimage-build/
+.flatpak-builder/
 
 # IDE files
 .vscode/
@@ -11,18 +14,29 @@ _build/
 .DS_Store
 .directory
 *.swp
+*.tmp
+*.temp
 
 # Python files
 __pycache__/
 *.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+venv/
+env/
+.env/
 
 # Object files
 *.o
 *.obj
 *.elf
+*.ko
 
 # Libraries
 *.so
+*.so.*
 *.a
 *.la
 *.lo
@@ -33,10 +47,11 @@ bin/
 *.exe
 *.out
 *.app
+*.AppImage
 
 # Generated files
 include/
-stable-gtk-output.png
+emerge-output.png
 *.png
 
 # Debug files
@@ -44,6 +59,23 @@ stable-gtk-output.png
 *.su
 *.idb
 *.pdb 
+core
+core.*
+*.log
 
 # Copy dependencies for Stable Diffusion
 copy_deps.sh
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+
+# Meson
+.mesonpy-native-file*
+
+# AppImage
+appimagetool
+package.sh
+AppDir/
+build-appimage.sh

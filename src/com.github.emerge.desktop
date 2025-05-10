@@ -1,8 +1,8 @@
 [Desktop Entry]
-Name=Stable GTK
+Name=Emerge
 Comment=GTK4 Frontend for Stable-Diffusion.cpp
-Exec=stable-gtk
-Icon=com.github.stable-gtk
+Exec=emerge
+Icon=com.github.emerge
 Terminal=false
 Type=Application
 Categories=Graphics;GTK;

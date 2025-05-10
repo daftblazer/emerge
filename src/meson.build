@@ -1,17 +1,17 @@
-stable_gtk_sources = [
+emerge_sources = [
   'main.c',
-  'stable-gtk-window.c',
-  'stable-gtk-application.c',
+  'emerge-window.c',
+  'emerge-application.c',
 ]
 
 # Compile resources
-stable_gtk_resources = gnome.compile_resources(
-  'stable-gtk-resources',
-  'stable-gtk.gresource.xml',
-  c_name: 'stable_gtk'
+emerge_resources = gnome.compile_resources(
+  'emerge-resources',
+  'emerge.gresource.xml',
+  c_name: 'emerge'
 )
 
-stable_gtk_deps = [
+emerge_deps = [
   dependency('gtk4'),
   dependency('libadwaita-1'),
   declare_dependency(
@@ -20,14 +20,14 @@ stable_gtk_deps = [
   )
 ]
 
-executable('stable-gtk', 
-  stable_gtk_sources + stable_gtk_resources,
-  dependencies: stable_gtk_deps,
+executable('emerge', 
+  emerge_sources + emerge_resources,
+  dependencies: emerge_deps,
   install: true,
 )
 
 # Install desktop file
 install_data(
-  'com.github.stable-gtk.desktop',
+  'com.github.emerge.desktop',
   install_dir: join_paths(get_option('datadir'), 'applications')
 ) 
