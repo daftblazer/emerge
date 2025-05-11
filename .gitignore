@@ -63,8 +63,10 @@ core
 core.*
 *.log
 
-# Copy dependencies for Stable Diffusion
+# Scripts
 copy_deps.sh
+build.sh
+linuxdeploy-plugin-appimage
 
 # CMake
 CMakeCache.txt
