@@ -8,4 +8,8 @@ G_BEGIN_DECLS
 
 G_DECLARE_FINAL_TYPE (EmergeWindow, emerge_window, EMERGE, WINDOW, AdwApplicationWindow)
 
+// Add template functions declaration
+void save_template_to_file(EmergeWindow *self, const char *filepath);
+void load_template_from_file(EmergeWindow *self, const char *filepath);
+
 G_END_DECLS 

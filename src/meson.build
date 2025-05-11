@@ -14,6 +14,7 @@ emerge_resources = gnome.compile_resources(
 emerge_deps = [
   dependency('gtk4'),
   dependency('libadwaita-1'),
+  dependency('json-glib-1.0'),
   declare_dependency(
     include_directories: sd_inc,
     dependencies: [sd_lib, ggml_lib, ggml_vulkan_lib]

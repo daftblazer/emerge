@@ -5,6 +5,7 @@
 #include <time.h>
 #include <glib/gspawn.h>
 #include <sys/stat.h>
+#include <json-glib/json-glib.h>
 
 struct _EmergeWindow
 {
@@ -36,6 +37,7 @@ struct _EmergeWindow
   GtkButton           *convert_model_button;
   GtkDropDown         *quantization_dropdown;
   GtkWidget           *quantization_label;
+  GtkMenuButton       *template_menu_button;
 
   /* Generation state */
   GPid                child_pid;
@@ -47,9 +49,16 @@ struct _EmergeWindow
   gboolean            is_generating;
   guint               image_counter;
   gchar              *last_saved_dir;
+  gchar              *last_template_dir;
 };
 
 G_DEFINE_TYPE (EmergeWindow, emerge_window, ADW_TYPE_APPLICATION_WINDOW)
+
+// Forward declarations for template functions
+static void on_save_template_clicked (EmergeWindow *self);
+static void on_load_template_clicked (EmergeWindow *self);
+static void save_template_response (GObject *source_object, GAsyncResult *result, gpointer user_data);
+static void load_template_response (GObject *source_object, GAsyncResult *result, gpointer user_data);
 
 static void
 process_finished_cb (GPid pid, gint status, gpointer user_data)
@@ -1097,6 +1106,7 @@ emerge_window_finalize (GObject *object)
   g_free (self->model_path);
   g_free (self->initial_image_path);
   g_free (self->last_saved_dir);
+  g_free (self->last_template_dir);
   
   if (self->cancellable != NULL)
     g_object_unref (self->cancellable);
@@ -1139,6 +1149,7 @@ emerge_window_class_init (EmergeWindowClass *klass)
   gtk_widget_class_bind_template_child (widget_class, EmergeWindow, convert_model_button);
   gtk_widget_class_bind_template_child (widget_class, EmergeWindow, quantization_dropdown);
   gtk_widget_class_bind_template_child (widget_class, EmergeWindow, quantization_label);
+  gtk_widget_class_bind_template_child (widget_class, EmergeWindow, template_menu_button);
   
   gtk_widget_class_bind_template_callback (widget_class, on_generate_clicked);
   gtk_widget_class_bind_template_callback (widget_class, on_stop_clicked);
@@ -1154,6 +1165,9 @@ static void
 emerge_window_init (EmergeWindow *self)
 {
   GtkStringList *sampling_methods;
+  GtkStringList *quant_types;
+  GSimpleAction *save_template_action;
+  GSimpleAction *load_template_action;
   
   gtk_widget_init_template (GTK_WIDGET (self));
   
@@ -1166,6 +1180,7 @@ emerge_window_init (EmergeWindow *self)
   self->initial_image_path = NULL;
   self->image_counter = 1;
   self->last_saved_dir = NULL;
+  self->last_template_dir = NULL;
   
   /* Initialize UI values */
   gtk_spin_button_set_value (self->width_spin, 512);
@@ -1212,7 +1227,7 @@ emerge_window_init (EmergeWindow *self)
   gtk_label_set_text (self->status_label, "Ready");
   
   /* Set up quantization options for GGUF conversion */
-  GtkStringList *quant_types = gtk_string_list_new (NULL);
+  quant_types = gtk_string_list_new (NULL);
   const char * const quant_type_names[] = {
     "f16", "f32", "q8_0", "q5_0", "q5_1", "q4_0", "q4_1", NULL
   };
@@ -1223,4 +1238,341 @@ emerge_window_init (EmergeWindow *self)
   /* Default to q8_0 (index 2) */
   gtk_drop_down_set_selected (self->quantization_dropdown, 2);
   g_object_unref (quant_types);
+  
+  /* Set up template actions */
+  save_template_action = g_simple_action_new ("save-template", NULL);
+  g_signal_connect_swapped (save_template_action, "activate", G_CALLBACK (on_save_template_clicked), self);
+  g_action_map_add_action (G_ACTION_MAP (self), G_ACTION (save_template_action));
+  
+  load_template_action = g_simple_action_new ("load-template", NULL);
+  g_signal_connect_swapped (load_template_action, "activate", G_CALLBACK (on_load_template_clicked), self);
+  g_action_map_add_action (G_ACTION_MAP (self), G_ACTION (load_template_action));
+}
+
+void
+save_template_to_file (EmergeWindow *self, const char *filepath)
+{
+  JsonBuilder *builder = json_builder_new ();
+  GError *error = NULL;
+  
+  // Build JSON object with prompt configuration
+  json_builder_begin_object (builder);
+  
+  // Add prompts
+  json_builder_set_member_name (builder, "positive_prompt");
+  json_builder_add_string_value (builder, gtk_editable_get_text (GTK_EDITABLE (self->prompt_entry)));
+  
+  json_builder_set_member_name (builder, "negative_prompt");
+  json_builder_add_string_value (builder, gtk_editable_get_text (GTK_EDITABLE (self->negative_prompt_entry)));
+  
+  // Add image size
+  json_builder_set_member_name (builder, "width");
+  json_builder_add_int_value (builder, (int) gtk_spin_button_get_value (self->width_spin));
+  
+  json_builder_set_member_name (builder, "height");
+  json_builder_add_int_value (builder, (int) gtk_spin_button_get_value (self->height_spin));
+  
+  // Add advanced settings
+  json_builder_set_member_name (builder, "steps");
+  json_builder_add_int_value (builder, (int) gtk_spin_button_get_value (self->steps_spin));
+  
+  json_builder_set_member_name (builder, "seed");
+  json_builder_add_int_value (builder, (long) gtk_spin_button_get_value (self->seed_spin));
+  
+  json_builder_set_member_name (builder, "cfg_scale");
+  json_builder_add_double_value (builder, gtk_spin_button_get_value (self->cfg_scale_spin));
+  
+  json_builder_set_member_name (builder, "sampling_method");
+  json_builder_add_string_value (builder, 
+                              gtk_string_object_get_string (GTK_STRING_OBJECT (
+                                gtk_drop_down_get_selected_item (self->sampling_method_dropdown))));
+  
+  // Add img2img settings
+  json_builder_set_member_name (builder, "img2img_enabled");
+  json_builder_add_boolean_value (builder, adw_switch_row_get_active (self->img2img_toggle));
+  
+  json_builder_set_member_name (builder, "strength");
+  json_builder_add_double_value (builder, gtk_spin_button_get_value (self->strength_spin));
+  
+  json_builder_end_object (builder);
+  
+  // Generate JSON data
+  JsonGenerator *generator = json_generator_new ();
+  JsonNode *root = json_builder_get_root (builder);
+  json_generator_set_root (generator, root);
+  json_generator_set_pretty (generator, TRUE);
+  
+  // Save to file
+  if (!json_generator_to_file (generator, filepath, &error)) {
+    g_warning ("Error saving template: %s", error->message);
+    adw_toast_overlay_add_toast (self->toast_overlay,
+                             adw_toast_new (g_strdup_printf ("Error saving template: %s", error->message)));
+    g_error_free (error);
+  } else {
+    adw_toast_overlay_add_toast (self->toast_overlay,
+                             adw_toast_new ("Template saved successfully"));
+  }
+  
+  // Cleanup
+  json_node_free (root);
+  g_object_unref (generator);
+  g_object_unref (builder);
+}
+
+void
+load_template_from_file (EmergeWindow *self, const char *filepath)
+{
+  JsonParser *parser = json_parser_new ();
+  GError *error = NULL;
+  
+  // Parse the file
+  if (!json_parser_load_from_file (parser, filepath, &error)) {
+    g_warning ("Error loading template: %s", error->message);
+    adw_toast_overlay_add_toast (self->toast_overlay,
+                             adw_toast_new (g_strdup_printf ("Error loading template: %s", error->message)));
+    g_error_free (error);
+    g_object_unref (parser);
+    return;
+  }
+  
+  // Get the root object
+  JsonNode *root = json_parser_get_root (parser);
+  if (json_node_get_node_type (root) != JSON_NODE_OBJECT) {
+    g_warning ("Invalid template format: root is not an object");
+    adw_toast_overlay_add_toast (self->toast_overlay,
+                             adw_toast_new ("Invalid template format"));
+    g_object_unref (parser);
+    return;
+  }
+  
+  JsonObject *object = json_node_get_object (root);
+  
+  // Load prompts
+  if (json_object_has_member (object, "positive_prompt")) {
+    const char *positive_prompt = json_object_get_string_member (object, "positive_prompt");
+    gtk_editable_set_text (GTK_EDITABLE (self->prompt_entry), positive_prompt);
+  }
+  
+  if (json_object_has_member (object, "negative_prompt")) {
+    const char *negative_prompt = json_object_get_string_member (object, "negative_prompt");
+    gtk_editable_set_text (GTK_EDITABLE (self->negative_prompt_entry), negative_prompt);
+  }
+  
+  // Load image size
+  if (json_object_has_member (object, "width")) {
+    int width = json_object_get_int_member (object, "width");
+    gtk_spin_button_set_value (self->width_spin, width);
+  }
+  
+  if (json_object_has_member (object, "height")) {
+    int height = json_object_get_int_member (object, "height");
+    gtk_spin_button_set_value (self->height_spin, height);
+  }
+  
+  // Load advanced settings
+  if (json_object_has_member (object, "steps")) {
+    int steps = json_object_get_int_member (object, "steps");
+    gtk_spin_button_set_value (self->steps_spin, steps);
+  }
+  
+  if (json_object_has_member (object, "seed")) {
+    long seed = json_object_get_int_member (object, "seed");
+    gtk_spin_button_set_value (self->seed_spin, seed);
+  }
+  
+  if (json_object_has_member (object, "cfg_scale")) {
+    double cfg_scale = json_object_get_double_member (object, "cfg_scale");
+    gtk_spin_button_set_value (self->cfg_scale_spin, cfg_scale);
+  }
+  
+  if (json_object_has_member (object, "sampling_method")) {
+    const char *sampling_method = json_object_get_string_member (object, "sampling_method");
+    // Find the index of the sampling method in the dropdown
+    GtkStringList *sampling_methods = GTK_STRING_LIST (gtk_drop_down_get_model (self->sampling_method_dropdown));
+    guint n_items = g_list_model_get_n_items (G_LIST_MODEL (sampling_methods));
+    
+    for (guint i = 0; i < n_items; i++) {
+      GtkStringObject *item = GTK_STRING_OBJECT (g_list_model_get_item (G_LIST_MODEL (sampling_methods), i));
+      if (g_strcmp0 (gtk_string_object_get_string (item), sampling_method) == 0) {
+        gtk_drop_down_set_selected (self->sampling_method_dropdown, i);
+        g_object_unref (item);
+        break;
+      }
+      g_object_unref (item);
+    }
+  }
+  
+  // Load img2img settings
+  if (json_object_has_member (object, "img2img_enabled")) {
+    gboolean img2img_enabled = json_object_get_boolean_member (object, "img2img_enabled");
+    adw_switch_row_set_active (self->img2img_toggle, img2img_enabled);
+  }
+  
+  if (json_object_has_member (object, "strength")) {
+    double strength = json_object_get_double_member (object, "strength");
+    gtk_spin_button_set_value (self->strength_spin, strength);
+  }
+  
+  // Cleanup
+  g_object_unref (parser);
+  
+  adw_toast_overlay_add_toast (self->toast_overlay,
+                           adw_toast_new ("Template loaded successfully"));
+}
+
+static void
+save_template_response (GObject *source_object,
+                       GAsyncResult *result,
+                       gpointer user_data)
+{
+  EmergeWindow *self = EMERGE_WINDOW (user_data);
+  GtkFileDialog *dialog = GTK_FILE_DIALOG (source_object);
+  GFile *file;
+  GError *error = NULL;
+  
+  file = gtk_file_dialog_save_finish (dialog, result, &error);
+  if (file == NULL) {
+    if (!g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
+      g_warning ("Failed to save template: %s", error->message);
+    g_error_free (error);
+    return;
+  }
+  
+  // Get the path and save the template
+  gchar *path = g_file_get_path (file);
+  save_template_to_file (self, path);
+  
+  // Save the directory for next time
+  g_free (self->last_template_dir);
+  gchar *parent_path = g_path_get_dirname (path);
+  self->last_template_dir = g_strdup (parent_path);
+  g_free (parent_path);
+  
+  g_free (path);
+  g_object_unref (file);
+}
+
+static void
+on_save_template_clicked (EmergeWindow *self)
+{
+  GtkFileDialog *dialog;
+  GtkFileFilter *filter;
+  GListStore *filters;
+  GFile *current_folder = NULL;
+  
+  dialog = gtk_file_dialog_new ();
+  gtk_file_dialog_set_title (dialog, "Save Template");
+  
+  // Set default name
+  gtk_file_dialog_set_initial_name (dialog, "template.json");
+  
+  // Set initial folder if we have saved before
+  if (self->last_template_dir) {
+    current_folder = g_file_new_for_path (self->last_template_dir);
+  } else {
+    // Default to home directory if no previous save location
+    const gchar *home_dir = g_get_home_dir ();
+    current_folder = g_file_new_for_path (home_dir);
+  }
+  
+  if (current_folder) {
+    gtk_file_dialog_set_initial_folder (dialog, current_folder);
+  }
+  
+  filter = gtk_file_filter_new ();
+  gtk_file_filter_set_name (filter, "JSON Files");
+  gtk_file_filter_add_pattern (filter, "*.json");
+  
+  filters = g_list_store_new (GTK_TYPE_FILE_FILTER);
+  g_list_store_append (filters, filter);
+  gtk_file_dialog_set_filters (dialog, G_LIST_MODEL(filters));
+  
+  gtk_file_dialog_save (dialog,
+                       GTK_WINDOW(self),
+                       NULL,  // cancellable
+                       save_template_response,
+                       self);
+  
+  if (current_folder)
+    g_object_unref (current_folder);
+  g_object_unref(dialog);
+  g_object_unref(filter);
+  g_object_unref(filters);
+}
+
+static void
+load_template_response (GObject *source_object,
+                        GAsyncResult *result,
+                        gpointer user_data)
+{
+  EmergeWindow *self = EMERGE_WINDOW (user_data);
+  GtkFileDialog *dialog = GTK_FILE_DIALOG (source_object);
+  GFile *file;
+  GError *error = NULL;
+  
+  file = gtk_file_dialog_open_finish (dialog, result, &error);
+  if (file == NULL) {
+    if (!g_error_matches (error, G_IO_ERROR, G_IO_ERROR_CANCELLED))
+      g_warning ("Failed to open template: %s", error->message);
+    g_error_free (error);
+    return;
+  }
+  
+  // Get the path and load the template
+  gchar *path = g_file_get_path (file);
+  load_template_from_file (self, path);
+  
+  // Save the directory for next time
+  g_free (self->last_template_dir);
+  gchar *parent_path = g_path_get_dirname (path);
+  self->last_template_dir = g_strdup (parent_path);
+  g_free (parent_path);
+  
+  g_free (path);
+  g_object_unref (file);
+}
+
+static void
+on_load_template_clicked (EmergeWindow *self)
+{
+  GtkFileDialog *dialog;
+  GtkFileFilter *filter;
+  GListStore *filters;
+  GFile *current_folder = NULL;
+  
+  dialog = gtk_file_dialog_new ();
+  gtk_file_dialog_set_title (dialog, "Load Template");
+  
+  // Set initial folder if we have saved before
+  if (self->last_template_dir) {
+    current_folder = g_file_new_for_path (self->last_template_dir);
+  } else {
+    // Default to home directory if no previous save location
+    const gchar *home_dir = g_get_home_dir ();
+    current_folder = g_file_new_for_path (home_dir);
+  }
+  
+  if (current_folder) {
+    gtk_file_dialog_set_initial_folder (dialog, current_folder);
+  }
+  
+  filter = gtk_file_filter_new ();
+  gtk_file_filter_set_name (filter, "JSON Files");
+  gtk_file_filter_add_pattern (filter, "*.json");
+  
+  filters = g_list_store_new (GTK_TYPE_FILE_FILTER);
+  g_list_store_append (filters, filter);
+  gtk_file_dialog_set_filters (dialog, G_LIST_MODEL (filters));
+  
+  gtk_file_dialog_open (dialog,
+                       GTK_WINDOW (self),
+                       NULL,  // cancellable
+                       load_template_response,
+                       self);
+  
+  if (current_folder)
+    g_object_unref (current_folder);
+  g_object_unref (dialog);
+  g_object_unref (filter);
+  g_object_unref (filters);
 } 

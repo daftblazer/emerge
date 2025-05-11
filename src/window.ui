@@ -2,6 +2,21 @@
 <interface>
   <requires lib="gtk" version="4.0"/>
   <requires lib="libadwaita" version="1.0"/>
+  
+  <!-- Template Menu Model -->
+  <menu id="template_menu">
+    <section>
+      <item>
+        <attribute name="label" translatable="yes">Save Template</attribute>
+        <attribute name="action">win.save-template</attribute>
+      </item>
+      <item>
+        <attribute name="label" translatable="yes">Load Template</attribute>
+        <attribute name="action">win.load-template</attribute>
+      </item>
+    </section>
+  </menu>
+  
   <template class="EmergeWindow" parent="AdwApplicationWindow">
     <property name="title" translatable="yes">Emerge</property>
     <property name="default-width">1200</property>
@@ -19,6 +34,14 @@
                     <property name="subtitle" translatable="yes">AI Image Generation</property>
                   </object>
                 </property>
+                <!-- Add Template Menu -->
+                <child type="end">
+                  <object class="GtkMenuButton" id="template_menu_button">
+                    <property name="icon-name">document-properties-symbolic</property>
+                    <property name="tooltip-text" translatable="yes">Template options</property>
+                    <property name="menu-model">template_menu</property>
+                  </object>
+                </child>
               </object>
             </child>
             <property name="content">
