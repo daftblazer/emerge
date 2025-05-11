@@ -377,12 +377,18 @@ on_generate_clicked (GtkButton *button G_GNUC_UNUSED,
   // Create sequentially numbered output path
   self->output_path = g_strdup_printf("emerge-output-%04d.png", self->image_counter++);
   
-  /* Get the absolute path to the sd binary */
-  sd_path = g_build_filename ("/run/media/system/Projects/Coding/Stable-GTK", "bin", "sd", NULL);
+  /* Find the sd binary in PATH (AppRun should have set this up) */
+  sd_path = g_find_program_in_path ("sd");
   
   if (sd_path == NULL) {
-    /* If SD binary not in expected relative path, try the current working directory */
-    sd_path = g_build_filename ("/run/media/system/Projects/Coding/Stable-GTK", "bin", "sd", NULL);
+    adw_toast_overlay_add_toast (self->toast_overlay,
+                               adw_toast_new ("Failed to find 'sd' executable in PATH."));
+    // Re-enable relevant UI elements if needed, similar to other error paths
+    self->is_generating = FALSE;
+    gtk_widget_set_sensitive (GTK_WIDGET (self->generate_button), TRUE);
+    gtk_widget_set_sensitive (GTK_WIDGET (self->model_chooser), TRUE);
+    // etc. for other UI elements if they were disabled before this check
+    return;
   }
   
   /* Prepare the command line */
@@ -597,8 +603,22 @@ convert_model_save_response (GObject *source_object,
   gtk_widget_set_sensitive (GTK_WIDGET (self->convert_model_button), FALSE);
   gtk_widget_set_sensitive (GTK_WIDGET (self->model_chooser), FALSE);
   
-  /* Get the absolute path to the sd binary */
-  sd_path = g_build_filename ("/run/media/system/Projects/Coding/Stable-GTK", "bin", "sd", NULL);
+  /* Find the sd binary in PATH */
+  sd_path = g_find_program_in_path ("sd");
+  
+  if (sd_path == NULL) {
+    adw_toast_overlay_add_toast (self->toast_overlay,
+                               adw_toast_new ("Failed to find 'sd' executable for conversion."));
+    g_free (output_path);
+    g_object_unref (file);
+    // Reset UI (copied from existing error handling)
+    gtk_widget_set_sensitive (GTK_WIDGET (self->convert_model_button), TRUE);
+    gtk_widget_set_sensitive (GTK_WIDGET (self->model_chooser), TRUE);
+    gtk_spinner_stop (self->spinner);
+    gtk_widget_set_visible (GTK_WIDGET (self->spinner), FALSE);
+    gtk_label_set_text (self->status_label, "Ready");
+    return;
+  }
   
   /* Prepare the command line */
   command_line = g_strdup_printf ("\"%s\" -M convert -m \"%s\" -o \"%s\" -v --type %s",

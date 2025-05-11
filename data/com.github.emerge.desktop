@@ -1,9 +1,8 @@
 [Desktop Entry]
 Name=Emerge
-Comment=A modern GTK4 Libadwaita user interface for Stable-Diffusion.cpp
+Comment=A modern GTK4 Libadwaita interface for Stable-Diffusion.cpp
 Exec=emerge-wrapper
 Icon=com.github.emerge
+Terminal=false
 Type=Application
 Categories=Graphics;
-Terminal=false
-StartupNotify=true
