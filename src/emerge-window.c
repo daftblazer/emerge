@@ -4,6 +4,7 @@
 #include <signal.h>
 #include <time.h>
 #include <glib/gspawn.h>
+#include <sys/stat.h>
 
 struct _EmergeWindow
 {
@@ -70,18 +71,30 @@ process_finished_cb (GPid pid, gint status, gpointer user_data)
                                adw_toast_new ("Generation cancelled"));
   } else if (status == 0) {
     /* Load the generated image - with refresh to prevent caching issues */
+    
+    // Print debug info
+    g_print("Loading image from: %s\n", self->output_path);
+    g_print("File exists: %s\n", g_file_test(self->output_path, G_FILE_TEST_EXISTS) ? "YES" : "NO");
+    
     GFile *file = g_file_new_for_path (self->output_path);
     
     /* Clear the current picture first */
     gtk_picture_set_file (self->output_image, NULL);
     
     /* Load the new image */
-    GdkTexture *texture = gdk_texture_new_from_file(file, NULL);
+    GError *load_error = NULL;
+    GdkTexture *texture = gdk_texture_new_from_file(file, &load_error);
     if (texture) {
       gtk_picture_set_paintable(self->output_image, GDK_PAINTABLE(texture));
       g_object_unref(texture);
+      g_print("Image loaded successfully\n");
     } else {
+      g_print("Failed to load texture: %s\n", load_error ? load_error->message : "unknown error");
+      if (load_error) g_error_free(load_error);
+      
+      // Fall back to regular file loading
       gtk_picture_set_file(self->output_image, file);
+      g_print("Attempted fallback to gtk_picture_set_file\n");
     }
     
     g_object_unref (file);
@@ -327,6 +340,15 @@ on_save_clicked (GtkButton *button G_GNUC_UNUSED,
   // Set initial folder if we have saved before
   if (self->last_saved_dir) {
     current_folder = g_file_new_for_path(self->last_saved_dir);
+  } else {
+    // Default to Pictures directory if no previous save location
+    const gchar *home_dir = g_get_home_dir();
+    gchar *pictures_dir = g_build_filename(home_dir, "Pictures", NULL);
+    current_folder = g_file_new_for_path(pictures_dir);
+    g_free(pictures_dir);
+  }
+  
+  if (current_folder) {
     gtk_file_dialog_set_initial_folder(dialog, current_folder);
   }
   
@@ -349,6 +371,162 @@ on_save_clicked (GtkButton *button G_GNUC_UNUSED,
   g_object_unref(dialog);
   g_object_unref(filter);
   g_object_unref(filters);
+}
+
+static gboolean
+ensure_directory_exists(const gchar *dir_path)
+{
+  if (g_file_test(dir_path, G_FILE_TEST_IS_DIR)) {
+    return TRUE;
+  }
+  
+  // Create directory with permissive permissions so files can be read
+  gint result = g_mkdir_with_parents(dir_path, 0755);
+  
+  return (result == 0);
+}
+
+static gchar*
+find_sd_executable(void)
+{
+  gchar *sd_path;
+  
+  // First try to find 'sd' in PATH (this will work for AppImage)
+  sd_path = g_find_program_in_path("sd");
+  if (sd_path != NULL) {
+    return sd_path;
+  }
+  
+  // If not found in PATH, try in the bin directory relative to the executable
+  gchar *exe_dir = NULL;
+  gchar *bin_sd_path = NULL;
+  
+  // Get the directory where our executable is located
+  GFile *exe_file = g_file_new_for_path("/proc/self/exe");
+  GFile *exe_dir_file = NULL;
+  
+  if (exe_file) {
+    GFileInfo *info = g_file_query_info(exe_file, G_FILE_ATTRIBUTE_STANDARD_SYMLINK_TARGET,
+                                       G_FILE_QUERY_INFO_NONE, NULL, NULL);
+    if (info) {
+      const char *target = g_file_info_get_attribute_byte_string(info, 
+                                                              G_FILE_ATTRIBUTE_STANDARD_SYMLINK_TARGET);
+      if (target) {
+        GFile *target_file = g_file_new_for_path(target);
+        if (target_file) {
+          exe_dir_file = g_file_get_parent(target_file);
+          g_object_unref(target_file);
+        }
+      }
+      g_object_unref(info);
+    }
+    
+    if (exe_dir_file == NULL) {
+      // Fallback if we couldn't read the symlink target
+      exe_dir_file = g_file_get_parent(exe_file);
+    }
+    g_object_unref(exe_file);
+  }
+  
+  // Initialize paths to try
+  GQueue *paths_to_try = g_queue_new();
+  
+  // Add the current directory
+  g_queue_push_tail(paths_to_try, g_strdup("."));
+  
+  if (exe_dir_file) {
+    exe_dir = g_file_get_path(exe_dir_file);
+    g_object_unref(exe_dir_file);
+    
+    if (exe_dir) {
+      // Add executable directory
+      g_queue_push_tail(paths_to_try, g_strdup(exe_dir));
+      
+      // Also try one level up from executable directory
+      GFile *parent_dir_file = g_file_new_for_path(exe_dir);
+      GFile *project_dir_file = g_file_get_parent(parent_dir_file);
+      g_object_unref(parent_dir_file);
+      
+      if (project_dir_file) {
+        gchar *project_dir = g_file_get_path(project_dir_file);
+        g_object_unref(project_dir_file);
+        
+        if (project_dir) {
+          // Add parent directory
+          g_queue_push_tail(paths_to_try, g_strdup(project_dir));
+          
+          // For build directory scenarios, try two and three levels up
+          // This handles cases like build/src/emerge where we need to go up to find project root
+          GFile *build_dir_file = g_file_new_for_path(project_dir);
+          GFile *root_dir_file = g_file_get_parent(build_dir_file);
+          g_object_unref(build_dir_file);
+          
+          if (root_dir_file) {
+            gchar *root_dir = g_file_get_path(root_dir_file);
+            g_queue_push_tail(paths_to_try, g_strdup(root_dir));
+            
+            // Try one more level up
+            GFile *root_parent_file = g_file_get_parent(root_dir_file);
+            g_object_unref(root_dir_file);
+            
+            if (root_parent_file) {
+              gchar *root_parent = g_file_get_path(root_parent_file);
+              g_queue_push_tail(paths_to_try, g_strdup(root_parent));
+              g_object_unref(root_parent_file);
+              g_free(root_parent);
+            }
+            
+            g_free(root_dir);
+          }
+          
+          g_free(project_dir);
+        }
+      }
+      
+      g_free(exe_dir);
+    }
+  }
+  
+  // Try each path to see if bin/sd exists there
+  while (!g_queue_is_empty(paths_to_try)) {
+    gchar *base_path = g_queue_pop_head(paths_to_try);
+    
+    // Try bin/sd in this location
+    bin_sd_path = g_build_filename(base_path, "bin", "sd", NULL);
+    g_print("Checking for sd at: %s\n", bin_sd_path);
+    
+    if (g_file_test(bin_sd_path, G_FILE_TEST_IS_EXECUTABLE)) {
+      // Free remaining paths
+      while (!g_queue_is_empty(paths_to_try)) {
+        g_free(g_queue_pop_head(paths_to_try));
+      }
+      g_queue_free(paths_to_try);
+      g_free(base_path);
+      return bin_sd_path;
+    }
+    
+    g_free(bin_sd_path);
+    
+    // Try just 'sd' in this location (for development builds)
+    bin_sd_path = g_build_filename(base_path, "sd", NULL);
+    g_print("Checking for sd at: %s\n", bin_sd_path);
+    
+    if (g_file_test(bin_sd_path, G_FILE_TEST_IS_EXECUTABLE)) {
+      // Free remaining paths
+      while (!g_queue_is_empty(paths_to_try)) {
+        g_free(g_queue_pop_head(paths_to_try));
+      }
+      g_queue_free(paths_to_try);
+      g_free(base_path);
+      return bin_sd_path;
+    }
+    g_free(bin_sd_path);
+    
+    g_free(base_path);
+  }
+  
+  g_queue_free(paths_to_try);
+  return NULL;
 }
 
 static void
@@ -374,15 +552,75 @@ on_generate_clicked (GtkButton *button G_GNUC_UNUSED,
   // Free previous output path if it exists
   g_free(self->output_path);
   
-  // Create sequentially numbered output path
-  self->output_path = g_strdup_printf("emerge-output-%04d.png", self->image_counter++);
+  // Get system temp directory and create a unique subdirectory for emerge
+  const gchar *temp_dir = g_get_tmp_dir();
+  gchar *emerge_temp_dir = g_build_filename(temp_dir, "emerge-temp", NULL);
   
-  /* Find the sd binary in PATH (AppRun should have set this up) */
-  sd_path = g_find_program_in_path ("sd");
+  // Ensure the directory exists with proper permissions
+  if (!ensure_directory_exists(emerge_temp_dir)) {
+    adw_toast_overlay_add_toast (self->toast_overlay,
+                               adw_toast_new ("Failed to create temporary directory"));
+    g_free(emerge_temp_dir);
+    return;
+  }
+  
+  // Create sequentially numbered output path in the temp directory
+  gchar *filename = g_strdup_printf("emerge-output-%04d.png", self->image_counter++);
+  self->output_path = g_build_filename(emerge_temp_dir, filename, NULL);
+  g_free(filename);
+  
+  // Make sure permissions are correct on the temp directory for writing
+  chmod(emerge_temp_dir, 0755);
+  g_free(emerge_temp_dir);
+  
+  g_print("Will save output to: %s\n", self->output_path);
+  
+  /* Find the sd binary in PATH or in bin directory */
+  sd_path = find_sd_executable();
   
   if (sd_path == NULL) {
+    // Create a more detailed error message
+    GString *error_msg = g_string_new("Failed to find 'sd' executable. Install paths checked:\n");
+    
+    // Add current directory to the error message
+    gchar *cwd = g_get_current_dir();
+    g_string_append_printf(error_msg, "- %s/bin/sd\n", cwd);
+    g_string_append_printf(error_msg, "- %s/sd\n", cwd);
+    g_free(cwd);
+    
+    // Add paths relative to executable
+    gchar *exe_path = NULL;
+    GFile *exe_file = g_file_new_for_path("/proc/self/exe");
+    if (exe_file) {
+      exe_path = g_file_get_path(exe_file);
+      g_object_unref(exe_file);
+      if (exe_path) {
+        gchar *exe_dir = g_path_get_dirname(exe_path);
+        g_string_append_printf(error_msg, "- %s/bin/sd\n", exe_dir);
+        g_string_append_printf(error_msg, "- %s/sd\n", exe_dir);
+        
+        gchar *parent_dir = g_path_get_dirname(exe_dir);
+        g_string_append_printf(error_msg, "- %s/bin/sd\n", parent_dir);
+        g_string_append_printf(error_msg, "- %s/sd\n", parent_dir);
+        
+        gchar *root_dir = g_path_get_dirname(parent_dir);
+        g_string_append_printf(error_msg, "- %s/bin/sd\n", root_dir);
+        g_string_append_printf(error_msg, "- %s/sd\n", root_dir);
+        
+        g_free(root_dir);
+        g_free(parent_dir);
+        g_free(exe_dir);
+        g_free(exe_path);
+      }
+    }
+    
+    g_string_append(error_msg, "Make sure the 'sd' executable is in one of these locations or in PATH.");
+    
+    gtk_label_set_text (self->status_label, "Failed to find sd");
     adw_toast_overlay_add_toast (self->toast_overlay,
-                               adw_toast_new ("Failed to find 'sd' executable in PATH."));
+                               adw_toast_new (error_msg->str));
+    g_string_free(error_msg, TRUE);
+    
     // Re-enable relevant UI elements if needed, similar to other error paths
     self->is_generating = FALSE;
     gtk_widget_set_sensitive (GTK_WIDGET (self->generate_button), TRUE);
@@ -603,12 +841,52 @@ convert_model_save_response (GObject *source_object,
   gtk_widget_set_sensitive (GTK_WIDGET (self->convert_model_button), FALSE);
   gtk_widget_set_sensitive (GTK_WIDGET (self->model_chooser), FALSE);
   
-  /* Find the sd binary in PATH */
-  sd_path = g_find_program_in_path ("sd");
+  /* Find the sd binary in PATH or bin directory */
+  sd_path = find_sd_executable();
   
   if (sd_path == NULL) {
+    // Create a more detailed error message
+    GString *error_msg = g_string_new("Failed to find 'sd' executable. Install paths checked:\n");
+    
+    // Add current directory to the error message
+    gchar *cwd = g_get_current_dir();
+    g_string_append_printf(error_msg, "- %s/bin/sd\n", cwd);
+    g_string_append_printf(error_msg, "- %s/sd\n", cwd);
+    g_free(cwd);
+    
+    // Add paths relative to executable
+    gchar *exe_path = NULL;
+    GFile *exe_file = g_file_new_for_path("/proc/self/exe");
+    if (exe_file) {
+      exe_path = g_file_get_path(exe_file);
+      g_object_unref(exe_file);
+      if (exe_path) {
+        gchar *exe_dir = g_path_get_dirname(exe_path);
+        g_string_append_printf(error_msg, "- %s/bin/sd\n", exe_dir);
+        g_string_append_printf(error_msg, "- %s/sd\n", exe_dir);
+        
+        gchar *parent_dir = g_path_get_dirname(exe_dir);
+        g_string_append_printf(error_msg, "- %s/bin/sd\n", parent_dir);
+        g_string_append_printf(error_msg, "- %s/sd\n", parent_dir);
+        
+        gchar *root_dir = g_path_get_dirname(parent_dir);
+        g_string_append_printf(error_msg, "- %s/bin/sd\n", root_dir);
+        g_string_append_printf(error_msg, "- %s/sd\n", root_dir);
+        
+        g_free(root_dir);
+        g_free(parent_dir);
+        g_free(exe_dir);
+        g_free(exe_path);
+      }
+    }
+    
+    g_string_append(error_msg, "Make sure the 'sd' executable is in one of these locations or in PATH.");
+    
+    gtk_label_set_text (self->status_label, "Failed to find sd");
     adw_toast_overlay_add_toast (self->toast_overlay,
-                               adw_toast_new ("Failed to find 'sd' executable for conversion."));
+                               adw_toast_new (error_msg->str));
+    g_string_free(error_msg, TRUE);
+    
     g_free (output_path);
     g_object_unref (file);
     // Reset UI (copied from existing error handling)
@@ -759,6 +1037,40 @@ on_convert_model_clicked (GtkButton *button G_GNUC_UNUSED,
 }
 
 static void
+remove_directory_contents(const gchar *dir_path)
+{
+  GDir *dir;
+  GError *error = NULL;
+  const gchar *filename;
+  
+  dir = g_dir_open(dir_path, 0, &error);
+  if (dir == NULL) {
+    g_warning("Failed to open directory %s: %s", dir_path, error->message);
+    g_error_free(error);
+    return;
+  }
+  
+  while ((filename = g_dir_read_name(dir)) != NULL) {
+    gchar *file_path = g_build_filename(dir_path, filename, NULL);
+    
+    if (g_file_test(file_path, G_FILE_TEST_IS_DIR)) {
+      // Recursively delete subdirectories
+      remove_directory_contents(file_path);
+      rmdir(file_path);
+    } else {
+      // Delete file
+      if (unlink(file_path) != 0) {
+        g_warning("Failed to delete file: %s", file_path);
+      }
+    }
+    
+    g_free(file_path);
+  }
+  
+  g_dir_close(dir);
+}
+
+static void
 emerge_window_finalize (GObject *object)
 {
   EmergeWindow *self = EMERGE_WINDOW (object);
@@ -769,6 +1081,18 @@ emerge_window_finalize (GObject *object)
     g_source_remove (self->child_watch_id);
   }
   
+  // Clean up temporary directory
+  const gchar *temp_dir = g_get_tmp_dir();
+  gchar *emerge_temp_dir = g_build_filename(temp_dir, "emerge-temp", NULL);
+  
+  // Remove contents of directory
+  if (g_file_test(emerge_temp_dir, G_FILE_TEST_IS_DIR)) {
+    remove_directory_contents(emerge_temp_dir);
+    // Try to remove the directory itself
+    rmdir(emerge_temp_dir);
+  }
+  
+  g_free(emerge_temp_dir);
   g_free (self->output_path);
   g_free (self->model_path);
   g_free (self->initial_image_path);
